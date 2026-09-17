@@ -2,7 +2,7 @@
 
 import { formatTime } from "@/lib/format";
 import type { SavedGame } from "@/lib/savedGame";
-import { CLUE_TARGETS, type Difficulty } from "@/lib/sudoku";
+import { CLUE_TARGETS, MAX_MISTAKES, type Difficulty } from "@/lib/sudoku";
 
 type Props = {
   /** Unfinished game to offer resuming, if any. */
@@ -31,7 +31,7 @@ export default function DifficultyMenu({ saved, onSelect, onContinue }: Props) {
             <span>
               <span className="block text-lg font-semibold">Continue</span>
               <span className="block text-sm text-blue-100 capitalize">
-                {saved.difficulty} · {filled}/81 filled
+                {saved.difficulty} · {filled}/81 filled · {saved.mistakes}/{MAX_MISTAKES} mistakes
               </span>
             </span>
             <span className="font-mono text-sm tabular-nums">{formatTime(saved.seconds)}</span>

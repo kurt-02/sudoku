@@ -17,3 +17,8 @@ export function gridToString(grid: Grid): string {
 export function gridFromCells(cells: Cell[]): Grid {
   return cells.map((cell) => cell.value ?? 0);
 }
+
+/** Only the original clues, with player entries treated as empty. */
+export function givensFromCells(cells: Cell[]): Grid {
+  return cells.map((cell) => (cell.isGiven ? (cell.value ?? 0) : 0));
+}

@@ -6,6 +6,9 @@ import { blockingPeers } from "./validate";
 
 export type Direction = "up" | "down" | "left" | "right";
 
+/** Wrong placements allowed before the game ends. */
+export const MAX_MISTAKES = 3;
+
 export type GameAction =
   | { type: "select"; index: number | null }
   | { type: "move"; direction: Direction }

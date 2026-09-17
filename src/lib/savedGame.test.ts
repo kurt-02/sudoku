@@ -34,6 +34,12 @@ describe("parseSavedGame", () => {
     expect(parseSavedGame(save({ cells: [] }))).toBeNull();
   });
 
+  it("tracks mistakes, defaulting old saves to 0 and dropping lost games", () => {
+    expect(parseSavedGame(save({ mistakes: 2 }))?.mistakes).toBe(2);
+    expect(parseSavedGame(save())?.mistakes).toBe(0);
+    expect(parseSavedGame(save({ mistakes: 3 }))).toBeNull();
+  });
+
   it("ignores a game that is already solved", () => {
     expect(parseSavedGame(save({ cells: createBoardState(SOLUTION).cells }))).toBeNull();
   });

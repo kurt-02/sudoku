@@ -10,9 +10,13 @@ import {
   digitCounts,
   findConflicts,
   gameReducer,
+  givensFromCells,
   gridFromCells,
+  gridToString,
   isSolved,
+  MAX_MISTAKES,
   peersOf,
+  solve,
   type Difficulty,
   type Direction,
 } from "@/lib/sudoku";
@@ -29,14 +33,28 @@ type Props = {
   /** A fresh puzzle, or a restored saved game. */
   initialBoard: BoardState;
   initialSeconds: number;
+  initialMistakes: number;
   difficulty: Difficulty;
   /** Leave the game and go back to the difficulty menu. Progress stays saved. */
   onExit: () => void;
 };
 
-export default function SudokuBoard({ initialBoard, initialSeconds, difficulty, onExit }: Props) {
+export default function SudokuBoard({
+  initialBoard,
+  initialSeconds,
+  initialMistakes,
+  difficulty,
+  onExit,
+}: Props) {
   const [state, dispatch] = useReducer(gameReducer, initialBoard);
   const { cells, selectedIndex, noteMode } = state;
+
+  // Generated puzzles have exactly one solution, so it can be recovered from the clues alone.
+  const givens = useMemo(() => givensFromCells(initialBoard.cells), [initialBoard]);
+  const solution = useMemo(() => solve(givens), [givens]);
+
+  const [mistakes, setMistakes] = useState(initialMistakes);
+  const gameOver = mistakes >= MAX_MISTAKES;
 
   const grid = useMemo(() => gridFromCells(cells), [cells]);
   const conflicts = useMemo(() => findConflicts(grid), [grid]);
@@ -49,21 +67,29 @@ export default function SudokuBoard({ initialBoard, initialSeconds, difficulty, 
   );
   const selectedValue = selectedIndex === null ? null : cells[selectedIndex].value;
 
-  // Timer: ticks once a second while the game is neither paused nor solved.
+  // Timer: ticks once a second while the game is still being played.
   const [seconds, setSeconds] = useState(initialSeconds);
   const [paused, setPaused] = useState(false);
-  const running = !paused && !solved;
+  const finished = solved || gameOver;
+  const running = !paused && !finished;
   useEffect(() => {
     if (!running) return;
     const interval = setInterval(() => setSeconds((s) => s + 1), 1000);
     return () => clearInterval(interval);
   }, [running]);
 
-  // Save after every move and timer tick; a solved game has nothing left to resume.
+  // Save after every move and timer tick; a solved or lost game has nothing left to resume.
   useEffect(() => {
-    if (solved) clearSavedGame();
-    else writeSavedGame({ difficulty, cells, noteMode, seconds });
-  }, [solved, difficulty, cells, noteMode, seconds]);
+    if (finished) clearSavedGame();
+    else writeSavedGame({ difficulty, cells, noteMode, seconds, mistakes });
+  }, [finished, difficulty, cells, noteMode, seconds, mistakes]);
+
+  function retry() {
+    dispatch({ type: "load", puzzle: gridToString(givens) });
+    setSeconds(0);
+    setMistakes(0);
+    setPaused(false);
+  }
 
   // Auto-pause when the tab is hidden, so switching away doesn't cost time.
   useEffect(() => {
@@ -96,6 +122,7 @@ export default function SudokuBoard({ initialBoard, initialSeconds, difficulty, 
   }
 
   function enterDigit(digit: number, asNote: boolean) {
+    if (gameOver) return;
     const i = selectedIndex;
     if (i !== null && !cells[i].isGiven) {
       const cell = cells[i];
@@ -106,9 +133,10 @@ export default function SudokuBoard({ initialBoard, initialSeconds, difficulty, 
           rejectFeedback(i, blockers);
           return;
         }
-      } else if (cell.value !== digit && blockers.length > 0) {
-        // Conflicting numbers still go in (and show red), but get the same shake.
+      } else if (cell.value !== digit && solution && digit !== solution[i]) {
+        // Wrong numbers still go in (and show red), but shake and cost a mistake.
         rejectFeedback(i, blockers);
+        setMistakes((m) => Math.min(m + 1, MAX_MISTAKES));
       }
     }
     dispatch({ type: "input", digit, asNote });
@@ -118,12 +146,12 @@ export default function SudokuBoard({ initialBoard, initialSeconds, difficulty, 
   const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
     if (e.key === "Shift") setShiftHeld(true);
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if ((e.key === "p" || e.key === "P") && !solved) {
+    if ((e.key === "p" || e.key === "P") && !finished) {
       setPaused((p) => !p);
       return;
     }
-    // The board is hidden while paused, so ignore everything else.
-    if (paused) return;
+    // The board is covered while paused or after losing, so ignore everything else.
+    if (paused || gameOver) return;
     // Match the physical key: with Shift held, e.key is "!" or "@" rather than "1" or "2".
     const digitKey = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
     if (e.key in ARROWS) {
@@ -168,9 +196,18 @@ export default function SudokuBoard({ initialBoard, initialSeconds, difficulty, 
         >
           ← Menu
         </button>
-        <span className="text-sm font-medium text-zinc-600 capitalize dark:text-zinc-400">
-          {difficulty}
-        </span>
+        <div className="flex flex-col items-center text-sm">
+          <span className="font-medium text-zinc-600 capitalize dark:text-zinc-400">
+            {difficulty}
+          </span>
+          <span
+            className={
+              mistakes > 0 ? "font-medium text-red-600" : "text-zinc-600 dark:text-zinc-400"
+            }
+          >
+            Mistakes {mistakes}/{MAX_MISTAKES}
+          </span>
+        </div>
         <div className="flex items-center gap-2">
           <span
             className="font-mono text-lg text-zinc-900 tabular-nums dark:text-zinc-50"
@@ -180,7 +217,7 @@ export default function SudokuBoard({ initialBoard, initialSeconds, difficulty, 
           </span>
           <button
             onClick={() => setPaused((p) => !p)}
-            disabled={solved}
+            disabled={finished}
             aria-label={paused ? "Resume" : "Pause"}
             title={paused ? "Resume (P)" : "Pause (P)"}
             className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-black hover:bg-neutral-100 disabled:opacity-50"
@@ -195,7 +232,31 @@ export default function SudokuBoard({ initialBoard, initialSeconds, difficulty, 
         aria-label="Sudoku board"
         className="relative grid aspect-square w-full grid-cols-9 border-2 border-neutral-800"
       >
-        {paused && (
+        {gameOver && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-white/95">
+            <p className="text-2xl font-semibold text-black" role="status">
+              Game over
+            </p>
+            <p className="text-sm text-neutral-600">
+              {MAX_MISTAKES} mistakes · {formatTime(seconds)}
+            </p>
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={retry}
+                className="rounded-md bg-blue-600 px-5 py-2 text-white hover:bg-blue-700"
+              >
+                Try again
+              </button>
+              <button
+                onClick={onExit}
+                className="rounded-md border border-neutral-300 bg-white px-5 py-2 text-black hover:bg-neutral-100"
+              >
+                Back to menu
+              </button>
+            </div>
+          </div>
+        )}
+        {paused && !gameOver && (
           // Covers the board so the puzzle can't be studied while the clock is stopped.
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white">
             <p className="text-2xl font-semibold text-black">Paused</p>
@@ -215,7 +276,10 @@ export default function SudokuBoard({ initialBoard, initialSeconds, difficulty, 
             isSelected={i === selectedIndex}
             isPeer={peers.has(i)}
             isSameValue={selectedValue !== null && cell.value === selectedValue}
-            isConflict={conflicts.has(i)}
+            isConflict={
+              conflicts.has(i) ||
+              (!cell.isGiven && cell.value !== null && !!solution && cell.value !== solution[i])
+            }
             shakeKey={i === shake.target || shake.blockers.has(i) ? shake.id : null}
             isBlocking={shake.blockers.has(i)}
             onSelect={(index) => dispatch({ type: "select", index })}
@@ -238,7 +302,7 @@ export default function SudokuBoard({ initialBoard, initialSeconds, difficulty, 
             <button
               key={digit}
               onClick={(e) => enterDigit(digit, e.shiftKey)}
-              disabled={isComplete || paused}
+              disabled={isComplete || paused || gameOver}
               aria-hidden={isComplete}
               aria-label={`${digit}, ${remaining} left`}
               // Stay in the grid while hidden so the other buttons keep their positions.
@@ -256,14 +320,14 @@ export default function SudokuBoard({ initialBoard, initialSeconds, difficulty, 
       <div className="flex gap-2">
         <button
           onClick={() => dispatch({ type: "erase" })}
-          disabled={paused}
+          disabled={paused || gameOver}
           className="flex-1 rounded-md border border-neutral-300 bg-white py-2 text-sm text-black hover:bg-neutral-100"
         >
           Erase
         </button>
         <button
           onClick={() => dispatch({ type: "toggleNoteMode" })}
-          disabled={paused}
+          disabled={paused || gameOver}
           aria-pressed={noteMode}
           title="Toggle notes, or hold Shift while entering a number"
           className={`flex-1 rounded-md border py-2 text-sm ${

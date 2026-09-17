@@ -1,13 +1,14 @@
-import { CLUE_TARGETS, isSolved, type Difficulty } from "@/lib/sudoku";
+import { CLUE_TARGETS, MAX_MISTAKES, isSolved, type Difficulty } from "@/lib/sudoku";
 import type { Cell } from "@/types/game";
 
-/** Unfinished game kept in localStorage. Bump `version` if the shape changes. */
+/** Unfinished game kept in localStorage. Bump `version` if the shape changes incompatibly. */
 export type SavedGame = {
   version: 1;
   difficulty: Difficulty;
   cells: Cell[];
   noteMode: boolean;
   seconds: number;
+  mistakes: number;
 };
 
 const STORAGE_KEY = "sudoku:saved-game";
@@ -38,6 +39,8 @@ export function parseSavedGame(raw: string | null): SavedGame | null {
   }
   if (typeof data !== "object" || data === null) return null;
   const { version, difficulty, cells, noteMode, seconds } = data as Record<string, unknown>;
+  // Saves from before mistakes were tracked have no count; treat them as 0.
+  const mistakes = (data as Record<string, unknown>).mistakes ?? 0;
   const valid =
     version === 1 &&
     typeof difficulty === "string" &&
@@ -48,9 +51,13 @@ export function parseSavedGame(raw: string | null): SavedGame | null {
     typeof noteMode === "boolean" &&
     typeof seconds === "number" &&
     Number.isFinite(seconds) &&
-    seconds >= 0;
+    seconds >= 0 &&
+    Number.isInteger(mistakes) &&
+    (mistakes as number) >= 0 &&
+    (mistakes as number) < MAX_MISTAKES;
+  // A solved or lost game has nothing left to resume.
   if (!valid || isSolved(cells)) return null;
-  return data as SavedGame;
+  return { ...(data as SavedGame), mistakes: mistakes as number };
 }
 
 // Storage can throw (private mode, blocked site data, quota), so every access is guarded.

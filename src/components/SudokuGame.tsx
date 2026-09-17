@@ -13,6 +13,7 @@ type Game = {
   difficulty: Difficulty;
   initialBoard: BoardState;
   initialSeconds: number;
+  initialMistakes: number;
 };
 
 /** Top-level flow: pick a difficulty (or continue a saved game), then play. */
@@ -31,6 +32,7 @@ export default function SudokuGame() {
       difficulty,
       initialBoard: createBoardState(puzzle),
       initialSeconds: 0,
+      initialMistakes: 0,
     }));
   }
 
@@ -41,6 +43,7 @@ export default function SudokuGame() {
       difficulty: saved.difficulty,
       initialBoard: { cells: saved.cells, selectedIndex: null, noteMode: saved.noteMode },
       initialSeconds: saved.seconds,
+      initialMistakes: saved.mistakes,
     }));
   }
 
@@ -53,6 +56,7 @@ export default function SudokuGame() {
       key={game.id}
       initialBoard={game.initialBoard}
       initialSeconds={game.initialSeconds}
+      initialMistakes={game.initialMistakes}
       difficulty={game.difficulty}
       onExit={() => setGame(null)}
     />
