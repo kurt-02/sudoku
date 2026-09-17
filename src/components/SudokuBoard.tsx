@@ -2,6 +2,7 @@
 
 import { useEffect, useEffectEvent, useMemo, useReducer, useState } from "react";
 import SudokuCell from "@/components/SudokuCells";
+import { formatTime } from "@/lib/format";
 import {
   blockingPeers,
   completedDigits,
@@ -44,6 +45,25 @@ export default function SudokuBoard({ initialPuzzle, difficulty, onExit }: Props
     [selectedIndex],
   );
   const selectedValue = selectedIndex === null ? null : cells[selectedIndex].value;
+
+  // Timer: ticks once a second while the game is neither paused nor solved.
+  const [seconds, setSeconds] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const running = !paused && !solved;
+  useEffect(() => {
+    if (!running) return;
+    const interval = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(interval);
+  }, [running]);
+
+  // Auto-pause when the tab is hidden, so switching away doesn't cost time.
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.hidden) setPaused(true);
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
 
   // Holding Shift writes notes temporarily, without flipping the Notes toggle.
   const [shiftHeld, setShiftHeld] = useState(false);
@@ -89,6 +109,12 @@ export default function SudokuBoard({ initialPuzzle, difficulty, onExit }: Props
   const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
     if (e.key === "Shift") setShiftHeld(true);
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if ((e.key === "p" || e.key === "P") && !solved) {
+      setPaused((p) => !p);
+      return;
+    }
+    // The board is hidden while paused, so ignore everything else.
+    if (paused) return;
     // Match the physical key: with Shift held, e.key is "!" or "@" rather than "1" or "2".
     const digitKey = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
     if (e.key in ARROWS) {
@@ -125,7 +151,7 @@ export default function SudokuBoard({ initialPuzzle, difficulty, onExit }: Props
   }, []);
 
   return (
-    <div className="mt-8 flex w-full max-w-md flex-col gap-4">
+    <div className="mt-8 flex w-full max-w-md flex-col gap-4 p-10">
       <div className="flex items-center justify-between">
         <button
           onClick={onExit}
@@ -136,13 +162,42 @@ export default function SudokuBoard({ initialPuzzle, difficulty, onExit }: Props
         <span className="text-sm font-medium text-zinc-600 capitalize dark:text-zinc-400">
           {difficulty}
         </span>
+        <div className="flex items-center gap-2">
+          <span
+            className="font-mono text-lg text-zinc-900 tabular-nums dark:text-zinc-50"
+            aria-label="Elapsed time"
+          >
+            {formatTime(seconds)}
+          </span>
+          <button
+            onClick={() => setPaused((p) => !p)}
+            disabled={solved}
+            aria-label={paused ? "Resume" : "Pause"}
+            title={paused ? "Resume (P)" : "Pause (P)"}
+            className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-black hover:bg-neutral-100 disabled:opacity-50"
+          >
+            {paused ? "▶" : "❚❚"}
+          </button>
+        </div>
       </div>
 
       <div
         role="grid"
         aria-label="Sudoku board"
-        className="grid aspect-square w-full grid-cols-9 border-2 border-neutral-800"
+        className="relative grid aspect-square w-full grid-cols-9 border-2 border-neutral-800"
       >
+        {paused && (
+          // Covers the board so the puzzle can't be studied while the clock is stopped.
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white">
+            <p className="text-2xl font-semibold text-black">Paused</p>
+            <button
+              onClick={() => setPaused(false)}
+              className="rounded-md bg-blue-600 px-6 py-2 text-white hover:bg-blue-700"
+            >
+              Resume
+            </button>
+          </div>
+        )}
         {cells.map((cell, i) => (
           <SudokuCell
             key={i}
@@ -161,7 +216,7 @@ export default function SudokuBoard({ initialPuzzle, difficulty, onExit }: Props
 
       {solved && (
         <p className="text-lg font-semibold text-green-600" role="status">
-          Solved! Nice work.
+          Solved in {formatTime(seconds)}! Nice work.
         </p>
       )}
 
@@ -174,7 +229,7 @@ export default function SudokuBoard({ initialPuzzle, difficulty, onExit }: Props
             <button
               key={digit}
               onClick={(e) => enterDigit(digit, e.shiftKey)}
-              disabled={isComplete}
+              disabled={isComplete || paused}
               aria-hidden={isComplete}
               aria-label={`${digit}, ${remaining} left`}
               // Stay in the grid while hidden so the other buttons keep their positions.
@@ -192,12 +247,14 @@ export default function SudokuBoard({ initialPuzzle, difficulty, onExit }: Props
       <div className="flex gap-2">
         <button
           onClick={() => dispatch({ type: "erase" })}
+          disabled={paused}
           className="flex-1 rounded-md border border-neutral-300 bg-white py-2 text-sm text-black hover:bg-neutral-100"
         >
           Erase
         </button>
         <button
           onClick={() => dispatch({ type: "toggleNoteMode" })}
+          disabled={paused}
           aria-pressed={noteMode}
           title="Toggle notes, or hold Shift while entering a number"
           className={`flex-1 rounded-md border py-2 text-sm ${
