@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CLUE_TARGETS,
+  blockingPeers,
   completedDigits,
   GRID_SIZE,
   countSolutions,
@@ -136,22 +137,31 @@ describe("gameReducer", () => {
   it("toggles sorted notes and clears peer notes when a digit is placed", () => {
     let s = gameReducer(start, { type: "toggleNoteMode" });
     s = gameReducer(s, { type: "select", index: EMPTY });
-    s = gameReducer(s, { type: "input", digit: 6 });
+    s = gameReducer(s, { type: "input", digit: 4 });
     s = gameReducer(s, { type: "input", digit: 1 });
-    expect(s.cells[EMPTY].notes).toEqual([1, 6]);
+    expect(s.cells[EMPTY].notes).toEqual([1, 4]);
 
     s = gameReducer(s, { type: "toggleNoteMode" });
     s = gameReducer(s, { type: "select", index: 3 }); // same row
-    s = gameReducer(s, { type: "input", digit: 6 });
+    s = gameReducer(s, { type: "input", digit: 4 });
     expect(s.cells[EMPTY].notes).toEqual([1]);
+  });
+
+  it("rejects notes for digits already in the row, column, or box", () => {
+    const s = gameReducer(start, { type: "select", index: EMPTY });
+    // Row 0 has a 5 at index 0; box 0 has a 6 at index 9.
+    expect(blockingPeers(gridFromString(PUZZLE), EMPTY, 5)).toEqual([0]);
+    expect(blockingPeers(gridFromString(PUZZLE), EMPTY, 6)).toEqual([9]);
+    expect(gameReducer(s, { type: "input", digit: 5, asNote: true })).toBe(s);
+    expect(gameReducer(s, { type: "input", digit: 6, asNote: true })).toBe(s);
   });
 
   it("writes a note with asNote while note mode stays off", () => {
     let s = gameReducer(start, { type: "select", index: EMPTY });
-    s = gameReducer(s, { type: "input", digit: 7, asNote: true });
+    s = gameReducer(s, { type: "input", digit: 4, asNote: true });
     expect(s.noteMode).toBe(false);
     expect(s.cells[EMPTY].value).toBeNull();
-    expect(s.cells[EMPTY].notes).toEqual([7]);
+    expect(s.cells[EMPTY].notes).toEqual([4]);
   });
 
   it("moves the selection and wraps at the edges", () => {

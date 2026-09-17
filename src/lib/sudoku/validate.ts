@@ -7,6 +7,11 @@ export function canPlace(grid: Grid, index: number, digit: number): boolean {
   return peersOf(index).every((p) => grid[p] !== digit);
 }
 
+/** Peers of `index` already holding `digit`, i.e. the cells that make `digit` impossible there. */
+export function blockingPeers(grid: Grid, index: number, digit: number): number[] {
+  return peersOf(index).filter((p) => grid[p] === digit);
+}
+
 /** Indices of filled cells that share a digit with one of their peers. */
 export function findConflicts(grid: Grid): Set<number> {
   const conflicts = new Set<number>();

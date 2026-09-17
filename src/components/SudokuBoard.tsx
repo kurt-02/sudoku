@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useReducer, useState } from "react";
 import SudokuCell from "@/components/SudokuCells";
 import {
+  blockingPeers,
   completedDigits,
   createBoardState,
   digitCounts,
@@ -50,26 +51,55 @@ export default function SudokuBoard({ initialPuzzle }: Props) {
   const [shiftHeld, setShiftHeld] = useState(false);
   const notesActive = noteMode || shiftHeld;
 
+  // Feedback for a rejected note: the target and its blocking peers shake briefly.
+  const [shake, setShake] = useState({ target: -1, blockers: new Set<number>(), id: 0 });
   useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Shift") setShiftHeld(true);
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      // Match the physical key: with Shift held, e.key is "!" or "@" rather than "1" or "2".
-      const digitKey = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
-      if (e.key in ARROWS) {
-        e.preventDefault();
-        dispatch({ type: "move", direction: ARROWS[e.key] });
-      } else if (digitKey) {
-        e.preventDefault();
-        dispatch({ type: "input", digit: Number(digitKey[1]), asNote: e.shiftKey });
-      } else if (e.key === "Backspace" || e.key === "Delete" || e.key === "0") {
-        dispatch({ type: "erase" });
-      } else if (e.key === "n" || e.key === "N") {
-        dispatch({ type: "toggleNoteMode" });
-      } else if (e.key === "Escape") {
-        dispatch({ type: "select", index: null });
+    if (shake.target === -1) return;
+    const timer = setTimeout(
+      () => setShake((s) => ({ ...s, target: -1, blockers: new Set() })),
+      450,
+    );
+    return () => clearTimeout(timer);
+  }, [shake]);
+
+  function enterDigit(digit: number, asNote: boolean) {
+    const i = selectedIndex;
+    if (i !== null && (noteMode || asNote)) {
+      const cell = cells[i];
+      const blockers = blockingPeers(grid, i, digit);
+      const isAddingNote = !cell.isGiven && cell.value === null && !cell.notes.includes(digit);
+      if (isAddingNote && blockers.length > 0) {
+        setShake((s) => ({ target: i, blockers: new Set(blockers), id: s.id + 1 }));
+        // Haptic buzz on devices that support it (most Android phones; not iOS Safari).
+        navigator.vibrate?.(80);
+        return;
       }
     }
+    dispatch({ type: "input", digit, asNote });
+  }
+
+  // Effect events always see the latest render's state, so the listener doesn't need re-binding.
+  const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
+    if (e.key === "Shift") setShiftHeld(true);
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // Match the physical key: with Shift held, e.key is "!" or "@" rather than "1" or "2".
+    const digitKey = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
+    if (e.key in ARROWS) {
+      e.preventDefault();
+      dispatch({ type: "move", direction: ARROWS[e.key] });
+    } else if (digitKey) {
+      e.preventDefault();
+      enterDigit(Number(digitKey[1]), e.shiftKey);
+    } else if (e.key === "Backspace" || e.key === "Delete" || e.key === "0") {
+      dispatch({ type: "erase" });
+    } else if (e.key === "n" || e.key === "N") {
+      dispatch({ type: "toggleNoteMode" });
+    } else if (e.key === "Escape") {
+      dispatch({ type: "select", index: null });
+    }
+  });
+
+  useEffect(() => {
     function onKeyUp(e: KeyboardEvent) {
       if (e.key === "Shift") setShiftHeld(false);
     }
@@ -119,6 +149,8 @@ export default function SudokuBoard({ initialPuzzle }: Props) {
             isPeer={peers.has(i)}
             isSameValue={selectedValue !== null && cell.value === selectedValue}
             isConflict={conflicts.has(i)}
+            shakeKey={i === shake.target || shake.blockers.has(i) ? shake.id : null}
+            isBlocking={shake.blockers.has(i)}
             onSelect={(index) => dispatch({ type: "select", index })}
           />
         ))}
@@ -138,7 +170,7 @@ export default function SudokuBoard({ initialPuzzle }: Props) {
           return (
             <button
               key={digit}
-              onClick={(e) => dispatch({ type: "input", digit, asNote: e.shiftKey })}
+              onClick={(e) => enterDigit(digit, e.shiftKey)}
               disabled={isComplete}
               aria-hidden={isComplete}
               aria-label={`${digit}, ${remaining} left`}

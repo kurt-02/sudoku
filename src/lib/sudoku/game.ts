@@ -1,6 +1,8 @@
 import type { BoardState, Cell } from "@/types/game";
 import { cellsFromString } from "./board";
 import { colOf, peersOf, rowOf } from "./coords";
+import { gridFromCells } from "./grid";
+import { blockingPeers } from "./validate";
 
 export type Direction = "up" | "down" | "left" | "right";
 
@@ -55,9 +57,13 @@ export function gameReducer(state: BoardState, action: GameAction): BoardState {
 
       if (state.noteMode || action.asNote) {
         if (cell.value !== null) return state;
-        const notes = cell.notes.includes(digit)
-          ? cell.notes.filter((n) => n !== digit)
-          : [...cell.notes, digit].sort((a, b) => a - b);
+        if (cell.notes.includes(digit)) {
+          const notes = cell.notes.filter((n) => n !== digit);
+          return { ...state, cells: updateCell(state.cells, i, { notes }) };
+        }
+        // Only allow notes that don't clash with a digit already in the row, column, or box.
+        if (blockingPeers(gridFromCells(state.cells), i, digit).length > 0) return state;
+        const notes = [...cell.notes, digit].sort((a, b) => a - b);
         return { ...state, cells: updateCell(state.cells, i, { notes }) };
       }
 

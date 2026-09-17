@@ -12,6 +12,10 @@ type Props = {
   /** Holds the same digit as the selected cell. */
   isSameValue: boolean;
   isConflict: boolean;
+  /** Changes on every rejected note that involves this cell, restarting the shake; null when idle. */
+  shakeKey: number | null;
+  /** Holds the digit that blocked the rejected note. */
+  isBlocking: boolean;
   onSelect: (index: number) => void;
 };
 
@@ -24,6 +28,8 @@ export default function SudokuCell({
   isPeer,
   isSameValue,
   isConflict,
+  shakeKey,
+  isBlocking,
   onSelect,
 }: Props) {
   const row = rowOf(index);
@@ -34,13 +40,15 @@ export default function SudokuCell({
     "border border-neutral-300",
     col % 3 === 2 && col !== 8 ? "border-r-2 border-r-neutral-800" : "",
     row % 3 === 2 && row !== 8 ? "border-b-2 border-b-neutral-800" : "",
-    isSelected
-      ? "bg-blue-200"
-      : isSameValue
-        ? "bg-blue-100"
-        : isPeer
-          ? "bg-neutral-100"
-          : "bg-white",
+    isBlocking
+      ? "bg-red-200"
+      : isSelected
+        ? "bg-blue-200"
+        : isSameValue
+          ? "bg-blue-100"
+          : isPeer
+            ? "bg-neutral-100"
+            : "bg-white",
     isConflict ? "text-red-600" : cell.isGiven ? "font-semibold text-black" : "text-blue-600",
   ]
     .filter(Boolean)
@@ -54,16 +62,24 @@ export default function SudokuCell({
       className={classes}
       onClick={() => onSelect(index)}
     >
-      {cell.value ??
-        (cell.notes.length > 0 && (
-          <div className="grid size-full grid-cols-3 text-[0.6rem] leading-none text-black">
-            {NOTE_DIGITS.map((d) => (
-              <span key={d} className="flex items-center justify-center">
-                {cell.notes.includes(d) ? d : ""}
-              </span>
-            ))}
-          </div>
-        ))}
+      {/* A new key remounts this wrapper, so repeated rejections replay the animation. */}
+      <div
+        key={shakeKey ?? "idle"}
+        className={`flex size-full items-center justify-center ${
+          shakeKey !== null ? "motion-safe:animate-shake" : ""
+        }`}
+      >
+        {cell.value ??
+          (cell.notes.length > 0 && (
+            <div className="grid size-full grid-cols-3 text-[0.6rem] leading-none text-black">
+              {NOTE_DIGITS.map((d) => (
+                <span key={d} className="flex items-center justify-center">
+                  {cell.notes.includes(d) ? d : ""}
+                </span>
+              ))}
+            </div>
+          ))}
+      </div>
     </div>
   );
 }
