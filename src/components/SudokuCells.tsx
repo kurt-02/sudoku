@@ -52,20 +52,29 @@ export default function SudokuCell({
 
   const classes = [
     "flex items-center justify-center text-xl select-none cursor-pointer",
-    "relative border border-neutral-300 transition-opacity duration-300",
+    // Dark lines must differ from the dark peer shading (neutral-700) or they vanish when selected.
+    "relative border border-neutral-300 board-dark:border-neutral-600 transition-opacity duration-300",
     isDimmed ? "opacity-30" : "",
-    col % 3 === 2 && col !== 8 ? "border-r-2 border-r-neutral-800" : "",
-    row % 3 === 2 && row !== 8 ? "border-b-2 border-b-neutral-800" : "",
+    col % 3 === 2 && col !== 8
+      ? "border-r-2 border-r-neutral-800 board-dark:border-r-neutral-400"
+      : "",
+    row % 3 === 2 && row !== 8
+      ? "border-b-2 border-b-neutral-800 board-dark:border-b-neutral-400"
+      : "",
     isBlocking
-      ? "bg-red-200"
+      ? "bg-red-200 board-dark:bg-red-900"
       : isSelected
-        ? "bg-blue-200"
+        ? "bg-blue-200 board-dark:bg-blue-800"
         : isSameValue
-          ? "bg-blue-100"
+          ? "bg-blue-100 board-dark:bg-blue-950"
           : isPeer
-            ? "bg-neutral-100"
-            : "bg-white",
-    isConflict ? "text-red-600" : cell.isGiven ? "font-semibold text-black" : "text-blue-600",
+            ? "bg-neutral-100 board-dark:bg-neutral-700"
+            : "bg-white board-dark:bg-neutral-800",
+    isConflict
+      ? "text-red-600 board-dark:text-red-400"
+      : cell.isGiven
+        ? "font-semibold text-black board-dark:text-neutral-100"
+        : "text-blue-600 board-dark:text-blue-400",
   ]
     .filter(Boolean)
     .join(" ");
@@ -95,11 +104,11 @@ export default function SudokuCell({
         style={celebrateKey !== null ? { animationDelay: `${celebrateDelay}ms` } : undefined}
       >
         {cell.value === null && hintDigit !== null ? (
-          <span className="font-semibold text-blue-400">{hintDigit}</span>
+          <span className="font-semibold text-blue-400 board-dark:text-blue-300">{hintDigit}</span>
         ) : (
           (cell.value ??
           (cell.notes.length > 0 && (
-            <div className="grid size-full grid-cols-3 text-[0.6rem] leading-none text-black">
+            <div className="grid size-full grid-cols-3 text-[0.6rem] leading-none text-black board-dark:text-neutral-100">
               {NOTE_DIGITS.map((d) => (
                 <span key={d} className="flex items-center justify-center">
                   {cell.notes.includes(d) ? d : ""}
@@ -111,10 +120,10 @@ export default function SudokuCell({
       </div>
       {hintDigit !== null && (
         <>
-          <div className="pointer-events-none absolute inset-0 ring-[3px] ring-blue-600 ring-inset" />
+          <div className="pointer-events-none absolute inset-0 ring-[3px] ring-blue-600 ring-inset board-dark:ring-blue-500" />
           {/* On a wrong entry, show the answer small in the corner instead of hiding the mistake. */}
           {cell.value !== null && (
-            <span className="absolute top-0 right-0.5 text-[0.6rem] font-semibold text-blue-500">
+            <span className="absolute top-0 right-0.5 text-[0.6rem] font-semibold text-blue-500 board-dark:text-blue-300">
               {hintDigit}
             </span>
           )}

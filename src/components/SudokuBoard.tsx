@@ -35,8 +35,8 @@ import {
 import type { BoardState } from "@/types/game";
 
 const CONTROL =
-  "flex flex-col items-center gap-0.5 rounded-md border border-neutral-300 bg-white py-2 text-sm text-black hover:bg-neutral-100 disabled:opacity-50";
-const CAPTION = "text-[0.65rem] text-neutral-500";
+  "flex flex-col items-center gap-0.5 rounded-md border border-neutral-300 board-dark:border-neutral-700 bg-white board-dark:bg-neutral-800 py-2 text-sm text-black board-dark:text-neutral-100 hover:bg-neutral-100 board-dark:hover:bg-neutral-700 disabled:opacity-50";
+const CAPTION = "text-[0.65rem] text-neutral-500 board-dark:text-neutral-400";
 
 const ARROWS: Record<string, Direction> = {
   ArrowUp: "up",
@@ -327,12 +327,15 @@ export default function SudokuBoard({
   }, []);
 
   return (
-    <div className="mt-8 flex w-full max-w-md flex-col gap-4 p-10">
+    <div
+      data-board={settings.darkBoard ? "dark" : "light"}
+      className="mt-8 flex w-full max-w-md flex-col gap-4 p-10"
+    >
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
       <div className="flex items-center justify-between">
         <button
           onClick={onExit}
-          className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-black hover:bg-neutral-100"
+          className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-black hover:bg-neutral-100 board-dark:border-neutral-700 board-dark:bg-neutral-800 board-dark:text-neutral-100 board-dark:hover:bg-neutral-700"
         >
           ← Menu
         </button>
@@ -352,7 +355,7 @@ export default function SudokuBoard({
             disabled={finished}
             aria-label={paused ? "Resume" : "Pause"}
             title={paused ? "Resume (P)" : "Pause (P)"}
-            className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-black hover:bg-neutral-100 disabled:opacity-50"
+            className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-black hover:bg-neutral-100 disabled:opacity-50 board-dark:border-neutral-700 board-dark:bg-neutral-800 board-dark:text-neutral-100 board-dark:hover:bg-neutral-700"
           >
             {paused ? "▶" : "❚❚"}
           </button>
@@ -363,7 +366,7 @@ export default function SudokuBoard({
             }}
             aria-label="Settings"
             title="Settings"
-            className="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm text-black hover:bg-neutral-100"
+            className="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm text-black hover:bg-neutral-100 board-dark:border-neutral-700 board-dark:bg-neutral-800 board-dark:text-neutral-100 board-dark:hover:bg-neutral-700"
           >
             ⚙
           </button>
@@ -373,7 +376,7 @@ export default function SudokuBoard({
       <div
         role="grid"
         aria-label="Sudoku board"
-        className="relative grid aspect-square w-full grid-cols-9 border-2 border-neutral-800"
+        className="relative grid aspect-square w-full grid-cols-9 border-2 border-neutral-800 board-dark:border-neutral-400"
       >
         {solved && winResult && (
           <WinScreen
@@ -390,11 +393,14 @@ export default function SudokuBoard({
           />
         )}
         {gameOver && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-white/95">
-            <p className="text-2xl font-semibold text-black" role="status">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-white/95 board-dark:bg-neutral-900/95">
+            <p
+              className="text-2xl font-semibold text-black board-dark:text-neutral-100"
+              role="status"
+            >
               Game over
             </p>
-            <p className="text-sm text-neutral-600">
+            <p className="text-sm text-neutral-600 board-dark:text-neutral-400">
               {MAX_MISTAKES} mistakes · {formatTime(seconds)}
             </p>
             <div className="mt-2 flex gap-2">
@@ -406,7 +412,7 @@ export default function SudokuBoard({
               </button>
               <button
                 onClick={onExit}
-                className="rounded-md border border-neutral-300 bg-white px-5 py-2 text-black hover:bg-neutral-100"
+                className="rounded-md border border-neutral-300 bg-white px-5 py-2 text-black hover:bg-neutral-100 board-dark:border-neutral-700 board-dark:bg-neutral-800 board-dark:text-neutral-100 board-dark:hover:bg-neutral-700"
               >
                 Back to menu
               </button>
@@ -415,8 +421,8 @@ export default function SudokuBoard({
         )}
         {paused && !gameOver && (
           // Covers the board so the puzzle can't be studied while the clock is stopped.
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white">
-            <p className="text-2xl font-semibold text-black">Paused</p>
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white board-dark:bg-neutral-800">
+            <p className="text-2xl font-semibold text-black board-dark:text-neutral-100">Paused</p>
             <button
               onClick={() => setPaused(false)}
               className="rounded-md bg-blue-600 px-6 py-2 text-white hover:bg-blue-700"
@@ -470,7 +476,7 @@ export default function SudokuBoard({
               aria-hidden={isComplete}
               aria-label={`${digit}, ${remaining} left`}
               // Stay in the grid while hidden so the other buttons keep their positions.
-              className={`flex flex-col items-center rounded-md border border-neutral-300 bg-white py-1.5 text-black hover:bg-neutral-100 ${
+              className={`flex flex-col items-center rounded-md border border-neutral-300 bg-white py-1.5 text-black hover:bg-neutral-100 board-dark:border-neutral-700 board-dark:bg-neutral-800 board-dark:text-neutral-100 board-dark:hover:bg-neutral-700 ${
                 isLeaving
                   ? "motion-safe:animate-pad-pop motion-reduce:invisible"
                   : isComplete
@@ -479,7 +485,9 @@ export default function SudokuBoard({
               }`}
             >
               <span className="text-lg leading-tight">{digit}</span>
-              <span className="text-[0.65rem] leading-tight text-neutral-600">{remaining}</span>
+              <span className="text-[0.65rem] leading-tight text-neutral-600 board-dark:text-neutral-400">
+                {remaining}
+              </span>
             </button>
           );
         })}

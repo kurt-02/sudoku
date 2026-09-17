@@ -11,6 +11,7 @@ type Props = {
 };
 
 const OPTIONS: { key: keyof Settings; label: string; description: string }[] = [
+  { key: "darkBoard", label: "Dark board", description: "Dark cells and buttons" },
   {
     key: "mistakeLimit",
     label: "Mistake limit",

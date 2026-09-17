@@ -11,6 +11,8 @@ export type Settings = {
   showTimer: boolean;
   animations: boolean;
   vibration: boolean;
+  /** Dark cells and controls to match the page background. */
+  darkBoard: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -21,6 +23,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showTimer: true,
   animations: true,
   vibration: true,
+  darkBoard: false,
 };
 
 const STORAGE_KEY = "sudoku:settings";
