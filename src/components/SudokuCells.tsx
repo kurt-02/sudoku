@@ -24,6 +24,8 @@ type Props = {
   hintDigit: number | null;
   /** Faded back so a hinted cell stands out. */
   isDimmed: boolean;
+  /** Whether shake and pulse animations play (the red flash shows either way). */
+  animate: boolean;
   onSelect: (index: number) => void;
 };
 
@@ -42,6 +44,7 @@ export default function SudokuCell({
   celebrateDelay,
   hintDigit,
   isDimmed,
+  animate,
   onSelect,
 }: Props) {
   const row = rowOf(index);
@@ -81,11 +84,13 @@ export default function SudokuCell({
       <div
         key={`${shakeKey ?? "-"}:${celebrateKey ?? "-"}`}
         className={`flex size-full items-center justify-center ${
-          shakeKey !== null
-            ? "motion-safe:animate-shake"
-            : celebrateKey !== null
-              ? "motion-safe:animate-celebrate"
-              : ""
+          !animate
+            ? ""
+            : shakeKey !== null
+              ? "motion-safe:animate-shake"
+              : celebrateKey !== null
+                ? "motion-safe:animate-celebrate"
+                : ""
         }`}
         style={celebrateKey !== null ? { animationDelay: `${celebrateDelay}ms` } : undefined}
       >

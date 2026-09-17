@@ -34,10 +34,12 @@ describe("parseSavedGame", () => {
     expect(parseSavedGame(save({ cells: [] }))).toBeNull();
   });
 
-  it("tracks mistakes, defaulting old saves to 0 and dropping lost games", () => {
+  it("tracks mistakes, defaulting old saves to 0", () => {
     expect(parseSavedGame(save({ mistakes: 2 }))?.mistakes).toBe(2);
     expect(parseSavedGame(save())?.mistakes).toBe(0);
-    expect(parseSavedGame(save({ mistakes: 3 }))).toBeNull();
+    // With the mistake limit off, counts can go past the limit.
+    expect(parseSavedGame(save({ mistakes: 5 }))?.mistakes).toBe(5);
+    expect(parseSavedGame(save({ mistakes: -1 }))).toBeNull();
   });
 
   it("tracks hints used, capped by the difficulty's allowance", () => {

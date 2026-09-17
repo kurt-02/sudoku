@@ -15,7 +15,7 @@ export type GameAction =
   | { type: "select"; index: number | null }
   | { type: "move"; direction: Direction }
   /** `asNote` writes a pencil note even when note mode is off (e.g. while Shift is held). */
-  | { type: "input"; digit: number; asNote?: boolean }
+  | { type: "input"; digit: number; asNote?: boolean; allowImpossibleNotes?: boolean }
   | { type: "erase" }
   /** Fills every empty cell's notes with all digits that could still go there. */
   | { type: "autoNotes" }
@@ -81,7 +81,12 @@ export function gameReducer(state: BoardState, action: GameAction): BoardState {
           return { ...state, cells: updateCell(state.cells, i, { notes }) };
         }
         // Only allow notes that don't clash with a digit already in the row, column, or box.
-        if (blockingPeers(gridFromCells(state.cells), i, digit).length > 0) return state;
+        if (
+          !action.allowImpossibleNotes &&
+          blockingPeers(gridFromCells(state.cells), i, digit).length > 0
+        ) {
+          return state;
+        }
         const notes = [...cell.notes, digit].sort((a, b) => a - b);
         return { ...state, cells: updateCell(state.cells, i, { notes }) };
       }

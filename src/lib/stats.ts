@@ -132,6 +132,14 @@ export function readStats(): Stats {
   }
 }
 
+export function resetStats(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Nothing stored to clear.
+  }
+}
+
 /** Reads, applies `change`, writes back, and returns the new stats. */
 export function updateStats(change: (stats: Stats) => Stats): Stats {
   const next = change(readStats());

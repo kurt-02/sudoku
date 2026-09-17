@@ -12,6 +12,9 @@ type Props = {
   /** Stats for this difficulty, already including this win. */
   stats: DifficultyStats;
   isNewBest: boolean;
+  animate: boolean;
+  /** Hides the "/3" when the mistake limit is off. */
+  mistakeLimit: boolean;
   onNewGame: () => void;
   onExit: () => void;
 };
@@ -33,6 +36,8 @@ export default function WinScreen({
   hintsUsed,
   stats,
   isNewBest,
+  animate,
+  mistakeLimit,
   onNewGame,
   onExit,
 }: Props) {
@@ -43,7 +48,7 @@ export default function WinScreen({
     <div
       role="dialog"
       aria-label="Puzzle solved"
-      className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/95 px-4 motion-safe:animate-fade-in"
+      className={`absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/95 px-4 ${animate ? "motion-safe:animate-fade-in" : ""}`}
     >
       <p className="text-2xl font-semibold text-black">Solved!</p>
 
@@ -55,7 +60,8 @@ export default function WinScreen({
           </span>
         )}
         <span className="mt-1 text-xs text-neutral-500 capitalize">
-          {difficulty} · {mistakes}/{MAX_MISTAKES} mistakes · {hintsUsed} hints
+          {difficulty} · {mistakes}
+          {mistakeLimit ? `/${MAX_MISTAKES}` : ""} mistakes · {hintsUsed} hints
         </span>
       </div>
 

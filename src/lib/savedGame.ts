@@ -1,10 +1,4 @@
-import {
-  CLUE_TARGETS,
-  HINTS_BY_DIFFICULTY,
-  MAX_MISTAKES,
-  isSolved,
-  type Difficulty,
-} from "@/lib/sudoku";
+import { CLUE_TARGETS, HINTS_BY_DIFFICULTY, isSolved, type Difficulty } from "@/lib/sudoku";
 import type { Cell } from "@/types/game";
 
 /** Unfinished game kept in localStorage. Bump `version` if the shape changes incompatibly. */
@@ -62,7 +56,6 @@ export function parseSavedGame(raw: string | null): SavedGame | null {
     seconds >= 0 &&
     Number.isInteger(mistakes) &&
     (mistakes as number) >= 0 &&
-    (mistakes as number) < MAX_MISTAKES &&
     Number.isInteger(hintsUsed) &&
     (hintsUsed as number) >= 0 &&
     (hintsUsed as number) <= HINTS_BY_DIFFICULTY[difficulty as Difficulty];

@@ -2,8 +2,10 @@
 
 import { useEffect, useEffectEvent, useMemo, useReducer, useState } from "react";
 import SudokuCell from "@/components/SudokuCells";
+import SettingsDialog from "@/components/SettingsDialog";
 import WinScreen from "@/components/WinScreen";
 import { formatTime } from "@/lib/format";
+import { useSettings } from "@/lib/useSettings";
 import { clearSavedGame, writeSavedGame } from "@/lib/savedGame";
 import { recordLoss, recordStart, recordWin, updateStats, type DifficultyStats } from "@/lib/stats";
 import {
@@ -74,7 +76,9 @@ export default function SudokuBoard({
   const solution = useMemo(() => solve(givens), [givens]);
 
   const [mistakes, setMistakes] = useState(initialMistakes);
-  const gameOver = mistakes >= MAX_MISTAKES;
+  const [settings] = useSettings();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const gameOver = settings.mistakeLimit && mistakes >= MAX_MISTAKES;
 
   const [hintsUsed, setHintsUsed] = useState(initialHintsUsed);
   const hintsLeft = Math.max(0, HINTS_BY_DIFFICULTY[difficulty] - hintsUsed);
@@ -168,7 +172,7 @@ export default function SudokuBoard({
   function rejectFeedback(target: number, blockers: number[]) {
     setShake((s) => ({ target, blockers: new Set(blockers), id: s.id + 1 }));
     // Haptic buzz on devices that support it (most Android phones; not iOS Safari).
-    navigator.vibrate?.(80);
+    if (settings.vibration) navigator.vibrate?.(80);
   }
 
   // Completion animations: cells pulse outward from the move; finished numbers pop off the pad.
@@ -189,6 +193,7 @@ export default function SudokuBoard({
 
   /** Animates whatever the move at `origin` newly completed. */
   function celebrateCompletions(nextGrid: number[], origin: number) {
+    if (!settings.animations) return;
     const before = new Set(completedUnits(grid, solution).map((u) => u.key));
     const newUnits = completedUnits(nextGrid, solution).filter((u) => !before.has(u.key));
     const newDigits = [...completedDigits(nextGrid)].filter((d) => !completed.has(d));
@@ -209,21 +214,29 @@ export default function SudokuBoard({
   function enterDigit(digit: number, asNote: boolean) {
     if (gameOver) return;
     const i = selectedIndex;
-    const action = { type: "input", digit, asNote } as const;
+    const action = {
+      type: "input",
+      digit,
+      asNote,
+      allowImpossibleNotes: !settings.blockImpossibleNotes,
+    } as const;
     if (i !== null && !cells[i].isGiven) {
       const cell = cells[i];
       const blockers = blockingPeers(grid, i, digit);
       if (noteMode || asNote) {
-        // Impossible notes are refused outright.
-        if (cell.value === null && !cell.notes.includes(digit) && blockers.length > 0) {
+        // Impossible notes are refused outright (unless the player turned that off).
+        const isAdding = cell.value === null && !cell.notes.includes(digit);
+        if (settings.blockImpossibleNotes && isAdding && blockers.length > 0) {
           rejectFeedback(i, blockers);
           return;
         }
       } else if (cell.value !== digit && solution && digit !== solution[i]) {
         // Wrong numbers still go in (and show red), but shake and cost a mistake.
         rejectFeedback(i, blockers);
-        setMistakes((m) => Math.min(m + 1, MAX_MISTAKES));
-        if (mistakes + 1 >= MAX_MISTAKES) updateStats((s) => recordLoss(s, difficulty));
+        setMistakes((m) => m + 1);
+        if (settings.mistakeLimit && mistakes + 1 >= MAX_MISTAKES) {
+          updateStats((s) => recordLoss(s, difficulty));
+        }
       }
       if (!noteMode && !asNote) {
         // The reducer is pure, so preview the move to see what it completes.
@@ -315,6 +328,7 @@ export default function SudokuBoard({
 
   return (
     <div className="mt-8 flex w-full max-w-md flex-col gap-4 p-10">
+      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
       <div className="flex items-center justify-between">
         <button
           onClick={onExit}
@@ -323,23 +337,15 @@ export default function SudokuBoard({
           ← Menu
         </button>
         <div className="flex flex-col items-center text-sm">
-          <span className="font-medium text-zinc-600 capitalize dark:text-zinc-400">
-            {difficulty}
-          </span>
-          <span
-            className={
-              mistakes > 0 ? "font-medium text-red-600" : "text-zinc-600 dark:text-zinc-400"
-            }
-          >
-            Mistakes {mistakes}/{MAX_MISTAKES}
+          <span className="font-medium text-zinc-400 capitalize">{difficulty}</span>
+          <span className={mistakes > 0 ? "font-medium text-red-400" : "text-zinc-400"}>
+            Mistakes {mistakes}
+            {settings.mistakeLimit ? `/${MAX_MISTAKES}` : ""}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span
-            className="font-mono text-lg text-zinc-900 tabular-nums dark:text-zinc-50"
-            aria-label="Elapsed time"
-          >
-            {formatTime(seconds)}
+          <span className="font-mono text-lg text-zinc-50 tabular-nums" aria-label="Elapsed time">
+            {settings.showTimer ? formatTime(seconds) : ""}
           </span>
           <button
             onClick={() => setPaused((p) => !p)}
@@ -349,6 +355,17 @@ export default function SudokuBoard({
             className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-black hover:bg-neutral-100 disabled:opacity-50"
           >
             {paused ? "▶" : "❚❚"}
+          </button>
+          <button
+            onClick={() => {
+              if (!finished) setPaused(true);
+              setSettingsOpen(true);
+            }}
+            aria-label="Settings"
+            title="Settings"
+            className="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm text-black hover:bg-neutral-100"
+          >
+            ⚙
           </button>
         </div>
       </div>
@@ -366,6 +383,8 @@ export default function SudokuBoard({
             hintsUsed={hintsUsed}
             stats={winResult.stats}
             isNewBest={winResult.isNewBest}
+            animate={settings.animations}
+            mistakeLimit={settings.mistakeLimit}
             onNewGame={() => onNewGame(difficulty)}
             onExit={onExit}
           />
@@ -412,11 +431,17 @@ export default function SudokuBoard({
             cell={cell}
             index={i}
             isSelected={i === selectedIndex}
-            isPeer={peers.has(i)}
-            isSameValue={selectedValue !== null && cell.value === selectedValue}
+            isPeer={settings.highlightPeers && peers.has(i)}
+            isSameValue={
+              settings.highlightPeers && selectedValue !== null && cell.value === selectedValue
+            }
             isConflict={
               conflicts.has(i) ||
-              (!cell.isGiven && cell.value !== null && !!solution && cell.value !== solution[i])
+              (settings.highlightWrong &&
+                !cell.isGiven &&
+                cell.value !== null &&
+                !!solution &&
+                cell.value !== solution[i])
             }
             shakeKey={i === shake.target || shake.blockers.has(i) ? shake.id : null}
             isBlocking={shake.blockers.has(i)}
@@ -424,6 +449,7 @@ export default function SudokuBoard({
             celebrateDelay={celebration.delays.get(i) ?? 0}
             hintDigit={i === activeHint && solution ? solution[i] : null}
             isDimmed={spotlight.on && activeHint !== null && i !== activeHint}
+            animate={settings.animations}
             onSelect={(index) => dispatch({ type: "select", index })}
           />
         ))}
