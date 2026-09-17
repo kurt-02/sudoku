@@ -1,14 +1,8 @@
-import { connection } from "next/server";
-import SudokuBoard from "@/components/SudokuBoard";
-import { generatePuzzle, gridToString } from "@/lib/sudoku";
+import SudokuGame from "@/components/SudokuGame";
 
 export const metadata = { title: "Play Sudoku" };
 
-export default async function Home() {
-  // Render per request instead of at build time, so every visit gets a new random puzzle.
-  await connection();
-  const puzzle = gridToString(generatePuzzle("medium").puzzle);
-
+export default function Home() {
   return (
     <main className="flex flex-1 flex-col items-center justify-center bg-zinc-50 px-6 text-center dark:bg-zinc-950">
       <h1 className="text-4xl font-semibold tracking-tight text-zinc-900 sm:text-5xl dark:text-zinc-50">
@@ -18,7 +12,7 @@ export default async function Home() {
         A clean, fast Sudoku you can play in the browser. Coming soon.
       </p>
 
-      <SudokuBoard initialPuzzle={puzzle} />
+      <SudokuGame />
     </main>
   );
 }

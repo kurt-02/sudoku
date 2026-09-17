@@ -9,9 +9,7 @@ import {
   digitCounts,
   findConflicts,
   gameReducer,
-  generatePuzzle,
   gridFromCells,
-  gridToString,
   isSolved,
   peersOf,
   type Difficulty,
@@ -25,14 +23,14 @@ const ARROWS: Record<string, Direction> = {
   ArrowRight: "right",
 };
 
-const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
-
 type Props = {
-  /** Generated on the server per request, so the server HTML and client hydration match. */
   initialPuzzle: string;
+  difficulty: Difficulty;
+  /** Leave the game and go back to the difficulty menu. */
+  onExit: () => void;
 };
 
-export default function SudokuBoard({ initialPuzzle }: Props) {
+export default function SudokuBoard({ initialPuzzle, difficulty, onExit }: Props) {
   const [state, dispatch] = useReducer(gameReducer, initialPuzzle, createBoardState);
   const { cells, selectedIndex, noteMode } = state;
 
@@ -126,22 +124,18 @@ export default function SudokuBoard({ initialPuzzle }: Props) {
     };
   }, []);
 
-  function newGame(difficulty: Difficulty) {
-    dispatch({ type: "load", puzzle: gridToString(generatePuzzle(difficulty).puzzle) });
-  }
-
   return (
     <div className="mt-8 flex w-full max-w-md flex-col gap-4">
-      <div className="flex gap-2">
-        {DIFFICULTIES.map((d) => (
-          <button
-            key={d}
-            onClick={() => newGame(d)}
-            className="flex-1 rounded-md border border-neutral-300 bg-white py-1.5 text-sm text-black capitalize hover:bg-neutral-100"
-          >
-            New {d}
-          </button>
-        ))}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={onExit}
+          className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-black hover:bg-neutral-100"
+        >
+          ← Menu
+        </button>
+        <span className="text-sm font-medium text-zinc-600 capitalize dark:text-zinc-400">
+          {difficulty}
+        </span>
       </div>
 
       <div
