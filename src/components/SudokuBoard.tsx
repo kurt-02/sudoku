@@ -3,10 +3,10 @@
 import { useEffect, useEffectEvent, useMemo, useReducer, useState } from "react";
 import SudokuCell from "@/components/SudokuCells";
 import { formatTime } from "@/lib/format";
+import { clearSavedGame, writeSavedGame } from "@/lib/savedGame";
 import {
   blockingPeers,
   completedDigits,
-  createBoardState,
   digitCounts,
   findConflicts,
   gameReducer,
@@ -16,6 +16,7 @@ import {
   type Difficulty,
   type Direction,
 } from "@/lib/sudoku";
+import type { BoardState } from "@/types/game";
 
 const ARROWS: Record<string, Direction> = {
   ArrowUp: "up",
@@ -25,14 +26,16 @@ const ARROWS: Record<string, Direction> = {
 };
 
 type Props = {
-  initialPuzzle: string;
+  /** A fresh puzzle, or a restored saved game. */
+  initialBoard: BoardState;
+  initialSeconds: number;
   difficulty: Difficulty;
-  /** Leave the game and go back to the difficulty menu. */
+  /** Leave the game and go back to the difficulty menu. Progress stays saved. */
   onExit: () => void;
 };
 
-export default function SudokuBoard({ initialPuzzle, difficulty, onExit }: Props) {
-  const [state, dispatch] = useReducer(gameReducer, initialPuzzle, createBoardState);
+export default function SudokuBoard({ initialBoard, initialSeconds, difficulty, onExit }: Props) {
+  const [state, dispatch] = useReducer(gameReducer, initialBoard);
   const { cells, selectedIndex, noteMode } = state;
 
   const grid = useMemo(() => gridFromCells(cells), [cells]);
@@ -47,7 +50,7 @@ export default function SudokuBoard({ initialPuzzle, difficulty, onExit }: Props
   const selectedValue = selectedIndex === null ? null : cells[selectedIndex].value;
 
   // Timer: ticks once a second while the game is neither paused nor solved.
-  const [seconds, setSeconds] = useState(0);
+  const [seconds, setSeconds] = useState(initialSeconds);
   const [paused, setPaused] = useState(false);
   const running = !paused && !solved;
   useEffect(() => {
@@ -55,6 +58,12 @@ export default function SudokuBoard({ initialPuzzle, difficulty, onExit }: Props
     const interval = setInterval(() => setSeconds((s) => s + 1), 1000);
     return () => clearInterval(interval);
   }, [running]);
+
+  // Save after every move and timer tick; a solved game has nothing left to resume.
+  useEffect(() => {
+    if (solved) clearSavedGame();
+    else writeSavedGame({ difficulty, cells, noteMode, seconds });
+  }, [solved, difficulty, cells, noteMode, seconds]);
 
   // Auto-pause when the tab is hidden, so switching away doesn't cost time.
   useEffect(() => {
