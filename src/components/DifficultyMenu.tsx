@@ -21,7 +21,13 @@ export default function DifficultyMenu({ saved, onSelect, onContinue }: Props) {
   const filled = saved ? saved.cells.filter((c) => c.value !== null).length : 0;
 
   return (
-    <div className="mt-8 flex w-full max-w-md flex-col gap-3">
+    <div className="flex w-full max-w-md flex-col gap-3">
+      <h1 className="text-4xl font-semibold tracking-tight text-zinc-900 sm:text-5xl dark:text-zinc-50">
+        Sudoku
+      </h1>
+      <p className="mb-6 text-lg text-zinc-600 dark:text-zinc-400">
+        A clean, fast Sudoku you can play in the browser. Coming soon.
+      </p>
       {saved && (
         <>
           <button
