@@ -42,7 +42,7 @@ src/
 ## Roadmap
 
 - [x] Phase 0: Foundation (scaffold, tooling, tests, CI-ready scripts)
-- [ ] Phase 1: Engine (pure puzzle generation, validation, solving)
+- [x] Phase 1: Engine (pure puzzle generation, validation, solving)
 - [ ] Phase 2: Board (interactive grid UI)
 - [ ] Phase 3: Game feel (notes, undo, timer, keyboard, polish)
 - [ ] Phase 4: Database
