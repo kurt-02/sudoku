@@ -20,6 +20,10 @@ type Props = {
   celebrateKey: number | null;
   /** Milliseconds to wait before pulsing, so completions ripple outward. */
   celebrateDelay: number;
+  /** Correct digit to show as a hint (not entered); null when this cell has no hint. */
+  hintDigit: number | null;
+  /** Faded back so a hinted cell stands out. */
+  isDimmed: boolean;
   onSelect: (index: number) => void;
 };
 
@@ -36,6 +40,8 @@ export default function SudokuCell({
   isBlocking,
   celebrateKey,
   celebrateDelay,
+  hintDigit,
+  isDimmed,
   onSelect,
 }: Props) {
   const row = rowOf(index);
@@ -43,7 +49,8 @@ export default function SudokuCell({
 
   const classes = [
     "flex items-center justify-center text-xl select-none cursor-pointer",
-    "border border-neutral-300",
+    "relative border border-neutral-300 transition-opacity duration-300",
+    isDimmed ? "opacity-30" : "",
     col % 3 === 2 && col !== 8 ? "border-r-2 border-r-neutral-800" : "",
     row % 3 === 2 && row !== 8 ? "border-b-2 border-b-neutral-800" : "",
     isBlocking
@@ -64,7 +71,9 @@ export default function SudokuCell({
     <div
       role="gridcell"
       aria-selected={isSelected}
-      aria-label={`Row ${row + 1}, column ${col + 1}, ${cell.value ?? "empty"}`}
+      aria-label={`Row ${row + 1}, column ${col + 1}, ${cell.value ?? "empty"}${
+        hintDigit !== null ? `, hint: ${hintDigit}` : ""
+      }`}
       className={classes}
       onClick={() => onSelect(index)}
     >
@@ -80,7 +89,10 @@ export default function SudokuCell({
         }`}
         style={celebrateKey !== null ? { animationDelay: `${celebrateDelay}ms` } : undefined}
       >
-        {cell.value ??
+        {cell.value === null && hintDigit !== null ? (
+          <span className="font-semibold text-blue-400">{hintDigit}</span>
+        ) : (
+          (cell.value ??
           (cell.notes.length > 0 && (
             <div className="grid size-full grid-cols-3 text-[0.6rem] leading-none text-black">
               {NOTE_DIGITS.map((d) => (
@@ -89,8 +101,20 @@ export default function SudokuCell({
                 </span>
               ))}
             </div>
-          ))}
+          )))
+        )}
       </div>
+      {hintDigit !== null && (
+        <>
+          <div className="pointer-events-none absolute inset-0 ring-[3px] ring-blue-600 ring-inset" />
+          {/* On a wrong entry, show the answer small in the corner instead of hiding the mistake. */}
+          {cell.value !== null && (
+            <span className="absolute top-0 right-0.5 text-[0.6rem] font-semibold text-blue-500">
+              {hintDigit}
+            </span>
+          )}
+        </>
+      )}
     </div>
   );
 }

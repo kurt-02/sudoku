@@ -40,6 +40,12 @@ describe("parseSavedGame", () => {
     expect(parseSavedGame(save({ mistakes: 3 }))).toBeNull();
   });
 
+  it("tracks hints used, capped by the difficulty's allowance", () => {
+    expect(parseSavedGame(save({ hintsUsed: 2 }))?.hintsUsed).toBe(2);
+    expect(parseSavedGame(save())?.hintsUsed).toBe(0);
+    expect(parseSavedGame(save({ hintsUsed: 3 }))).toBeNull(); // medium allows 2
+  });
+
   it("ignores a game that is already solved", () => {
     expect(parseSavedGame(save({ cells: createBoardState(SOLUTION).cells }))).toBeNull();
   });

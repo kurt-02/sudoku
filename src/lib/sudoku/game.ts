@@ -33,6 +33,18 @@ function updateCell(cells: Cell[], index: number, patch: Partial<Cell>): Cell[] 
   return cells.map((cell, i) => (i === index ? { ...cell, ...patch } : cell));
 }
 
+/** Sets a value and removes that digit from the pencil notes of every peer. */
+function placeDigit(cells: Cell[], index: number, digit: number): Cell[] {
+  const peers = new Set(peersOf(index));
+  return cells.map((c, k) => {
+    if (k === index) return { ...c, value: digit, notes: [] };
+    if (peers.has(k) && c.notes.includes(digit)) {
+      return { ...c, notes: c.notes.filter((n) => n !== digit) };
+    }
+    return c;
+  });
+}
+
 /** Pure state transition for every player action. Returns the same state object on no-ops. */
 export function gameReducer(state: BoardState, action: GameAction): BoardState {
   switch (action.type) {
@@ -75,16 +87,7 @@ export function gameReducer(state: BoardState, action: GameAction): BoardState {
         return { ...state, cells: updateCell(state.cells, i, { value: null }) };
       }
 
-      // Placing a digit removes it from the pencil notes of every peer.
-      const peers = new Set(peersOf(i));
-      const cells = state.cells.map((c, k) => {
-        if (k === i) return { ...c, value: digit, notes: [] };
-        if (peers.has(k) && c.notes.includes(digit)) {
-          return { ...c, notes: c.notes.filter((n) => n !== digit) };
-        }
-        return c;
-      });
-      return { ...state, cells };
+      return { ...state, cells: placeDigit(state.cells, i, digit) };
     }
 
     case "erase": {

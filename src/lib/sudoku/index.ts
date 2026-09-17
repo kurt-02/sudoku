@@ -6,6 +6,7 @@ export * from "./coords";
 export * from "./game";
 export * from "./generator";
 export * from "./grid";
+export * from "./hints";
 export * from "./history";
 export * from "./random";
 export * from "./solver";

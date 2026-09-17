@@ -13,10 +13,12 @@ import {
   createHistory,
   digitCounts,
   findConflicts,
+  findHintCell,
   gameReducer,
   givensFromCells,
   gridFromCells,
   gridToString,
+  HINTS_BY_DIFFICULTY,
   historyReducer,
   isSolved,
   MAX_MISTAKES,
@@ -40,6 +42,7 @@ type Props = {
   initialBoard: BoardState;
   initialSeconds: number;
   initialMistakes: number;
+  initialHintsUsed: number;
   difficulty: Difficulty;
   /** Leave the game and go back to the difficulty menu. Progress stays saved. */
   onExit: () => void;
@@ -49,6 +52,7 @@ export default function SudokuBoard({
   initialBoard,
   initialSeconds,
   initialMistakes,
+  initialHintsUsed,
   difficulty,
   onExit,
 }: Props) {
@@ -62,6 +66,15 @@ export default function SudokuBoard({
 
   const [mistakes, setMistakes] = useState(initialMistakes);
   const gameOver = mistakes >= MAX_MISTAKES;
+
+  const [hintsUsed, setHintsUsed] = useState(initialHintsUsed);
+  const hintsLeft = Math.max(0, HINTS_BY_DIFFICULTY[difficulty] - hintsUsed);
+  // A hint shows the answer in a cell without entering it; it goes away once that cell is right.
+  const [hintIndex, setHintIndex] = useState<number | null>(null);
+  const activeHint =
+    hintIndex !== null && solution && cells[hintIndex].value !== solution[hintIndex]
+      ? hintIndex
+      : null;
 
   const grid = useMemo(() => gridFromCells(cells), [cells]);
   const conflicts = useMemo(() => findConflicts(grid), [grid]);
@@ -88,13 +101,15 @@ export default function SudokuBoard({
   // Save after every move and timer tick; a solved or lost game has nothing left to resume.
   useEffect(() => {
     if (finished) clearSavedGame();
-    else writeSavedGame({ difficulty, cells, noteMode, seconds, mistakes });
-  }, [finished, difficulty, cells, noteMode, seconds, mistakes]);
+    else writeSavedGame({ difficulty, cells, noteMode, seconds, mistakes, hintsUsed });
+  }, [finished, difficulty, cells, noteMode, seconds, mistakes, hintsUsed]);
 
   function retry() {
     dispatch({ type: "load", puzzle: gridToString(givens) });
     setSeconds(0);
     setMistakes(0);
+    setHintsUsed(0);
+    setHintIndex(null);
     setPaused(false);
   }
 
@@ -190,6 +205,29 @@ export default function SudokuBoard({
     dispatch(action);
   }
 
+  /** Fills one empty or wrong cell with its correct number. */
+  // Briefly dims everything except the hinted cell, like a camera focusing on it.
+  const [spotlight, setSpotlight] = useState({ id: 0, on: false });
+  useEffect(() => {
+    if (!spotlight.on) return;
+    const timer = setTimeout(() => setSpotlight((s) => ({ ...s, on: false })), 1500);
+    return () => clearTimeout(timer);
+  }, [spotlight]);
+
+  function giveHint() {
+    if (paused || finished || !solution) return;
+    // An unused hint is still showing: point at it again instead of spending another.
+    const index =
+      activeHint ?? (hintsLeft > 0 ? findHintCell(cells, solution, selectedIndex) : null);
+    if (index === null) return;
+    dispatch({ type: "select", index });
+    setSpotlight((s) => ({ id: s.id + 1, on: true }));
+    if (activeHint === null) {
+      setHintIndex(index);
+      setHintsUsed((h) => h + 1);
+    }
+  }
+
   // Effect events always see the latest render's state, so the listener doesn't need re-binding.
   const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
     if (e.key === "Shift") setShiftHeld(true);
@@ -216,6 +254,8 @@ export default function SudokuBoard({
       enterDigit(Number(digitKey[1]), e.shiftKey);
     } else if (e.key === "Backspace" || e.key === "Delete" || e.key === "0") {
       dispatch({ type: "erase" });
+    } else if (e.key === "h" || e.key === "H") {
+      giveHint();
     } else if (e.key === "n" || e.key === "N") {
       dispatch({ type: "toggleNoteMode" });
     } else if (e.key === "Escape") {
@@ -338,6 +378,8 @@ export default function SudokuBoard({
             isBlocking={shake.blockers.has(i)}
             celebrateKey={celebration.delays.has(i) ? celebration.id : null}
             celebrateDelay={celebration.delays.get(i) ?? 0}
+            hintDigit={i === activeHint && solution ? solution[i] : null}
+            isDimmed={spotlight.on && activeHint !== null && i !== activeHint}
             onSelect={(index) => dispatch({ type: "select", index })}
           />
         ))}
@@ -409,6 +451,18 @@ export default function SudokuBoard({
         >
           Notes {notesActive ? "on" : "off"}
           {shiftHeld && !noteMode && <span className="ml-1 opacity-80">(Shift)</span>}
+        </button>
+        <button
+          onClick={giveHint}
+          disabled={paused || finished || (hintsLeft === 0 && activeHint === null)}
+          title="Show where a number goes (H)"
+          aria-label={`Hint, ${hintsLeft} left`}
+          className="flex-1 rounded-md border border-neutral-300 bg-white py-2 text-sm text-black hover:bg-neutral-100 disabled:opacity-50"
+        >
+          Hint{" "}
+          <span className="ml-0.5 rounded-full bg-blue-600 px-1.5 text-xs font-semibold text-white">
+            {hintsLeft}
+          </span>
         </button>
       </div>
     </div>

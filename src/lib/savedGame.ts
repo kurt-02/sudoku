@@ -1,4 +1,10 @@
-import { CLUE_TARGETS, MAX_MISTAKES, isSolved, type Difficulty } from "@/lib/sudoku";
+import {
+  CLUE_TARGETS,
+  HINTS_BY_DIFFICULTY,
+  MAX_MISTAKES,
+  isSolved,
+  type Difficulty,
+} from "@/lib/sudoku";
 import type { Cell } from "@/types/game";
 
 /** Unfinished game kept in localStorage. Bump `version` if the shape changes incompatibly. */
@@ -9,6 +15,7 @@ export type SavedGame = {
   noteMode: boolean;
   seconds: number;
   mistakes: number;
+  hintsUsed: number;
 };
 
 const STORAGE_KEY = "sudoku:saved-game";
@@ -41,6 +48,7 @@ export function parseSavedGame(raw: string | null): SavedGame | null {
   const { version, difficulty, cells, noteMode, seconds } = data as Record<string, unknown>;
   // Saves from before mistakes were tracked have no count; treat them as 0.
   const mistakes = (data as Record<string, unknown>).mistakes ?? 0;
+  const hintsUsed = (data as Record<string, unknown>).hintsUsed ?? 0;
   const valid =
     version === 1 &&
     typeof difficulty === "string" &&
@@ -54,10 +62,13 @@ export function parseSavedGame(raw: string | null): SavedGame | null {
     seconds >= 0 &&
     Number.isInteger(mistakes) &&
     (mistakes as number) >= 0 &&
-    (mistakes as number) < MAX_MISTAKES;
+    (mistakes as number) < MAX_MISTAKES &&
+    Number.isInteger(hintsUsed) &&
+    (hintsUsed as number) >= 0 &&
+    (hintsUsed as number) <= HINTS_BY_DIFFICULTY[difficulty as Difficulty];
   // A solved or lost game has nothing left to resume.
   if (!valid || isSolved(cells)) return null;
-  return { ...(data as SavedGame), mistakes: mistakes as number };
+  return { ...(data as SavedGame), mistakes: mistakes as number, hintsUsed: hintsUsed as number };
 }
 
 // Storage can throw (private mode, blocked site data, quota), so every access is guarded.
