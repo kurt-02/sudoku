@@ -15,15 +15,32 @@ export default function SudokuBoard() {
   }));
 
   return (
-    <div className="grid aspect-square w-md grid-cols-9 border-2 border-neutral-800">
-      {state.cells.map((cell, i) => (
+    <div className="grid aspect-square w-md grid-cols-9 border-2 border-neutral-400">
+    {state.cells.map((cell, i) => {
+        const row = Math.floor(i / 9);
+        const col = i % 9;
+
+        return (
         <div
-          key={i}
-          className="flex items-center justify-center border border-neutral-300 text-xl"
+            key={i}
+            className={`
+            flex items-center justify-center
+            border border-neutral-700
+            text-xl
+
+            ${col === 2 || col === 5 ? "!border-r-2 !border-r-neutral-400" : ""}
+            ${row === 2 || row === 5 ? "!border-b-2 !border-b-neutral-400" : ""}
+
+            ${col === 0 ? "!border-l-2 !border-l-neutral-400" : ""}
+            ${row === 0 ? "!border-t-2 !border-t-neutral-400" : ""}
+            ${col === 8 ? "!border-r-2 !border-r-neutral-400" : ""}
+            ${row === 8 ? "!border-b-2 !border-b-neutral-400" : ""}
+            `}
         >
-          {cell.value ?? ""}
+            {cell.value ?? ""}
         </div>
-      ))}
+        );
+    })}
     </div>
   );
 }
