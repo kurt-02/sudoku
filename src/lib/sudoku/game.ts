@@ -7,7 +7,8 @@ export type Direction = "up" | "down" | "left" | "right";
 export type GameAction =
   | { type: "select"; index: number | null }
   | { type: "move"; direction: Direction }
-  | { type: "input"; digit: number }
+  /** `asNote` writes a pencil note even when note mode is off (e.g. while Shift is held). */
+  | { type: "input"; digit: number; asNote?: boolean }
   | { type: "erase" }
   | { type: "toggleNoteMode" }
   | { type: "load"; puzzle: string };
@@ -52,7 +53,7 @@ export function gameReducer(state: BoardState, action: GameAction): BoardState {
       const cell = state.cells[i];
       if (cell.isGiven) return state;
 
-      if (state.noteMode) {
+      if (state.noteMode || action.asNote) {
         if (cell.value !== null) return state;
         const notes = cell.notes.includes(digit)
           ? cell.notes.filter((n) => n !== digit)

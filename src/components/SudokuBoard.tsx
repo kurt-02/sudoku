@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useReducer } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import SudokuCell from "@/components/SudokuCells";
 import {
   completedDigits,
@@ -44,14 +44,22 @@ export default function SudokuBoard({ initialPuzzle }: Props) {
   );
   const selectedValue = selectedIndex === null ? null : cells[selectedIndex].value;
 
+  // Holding Shift writes notes temporarily, without flipping the Notes toggle.
+  const [shiftHeld, setShiftHeld] = useState(false);
+  const notesActive = noteMode || shiftHeld;
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Shift") setShiftHeld(true);
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Match the physical key: with Shift held, e.key is "!" or "@" rather than "1" or "2".
+      const digitKey = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
       if (e.key in ARROWS) {
         e.preventDefault();
         dispatch({ type: "move", direction: ARROWS[e.key] });
-      } else if (/^[1-9]$/.test(e.key)) {
-        dispatch({ type: "input", digit: Number(e.key) });
+      } else if (digitKey) {
+        e.preventDefault();
+        dispatch({ type: "input", digit: Number(digitKey[1]), asNote: e.shiftKey });
       } else if (e.key === "Backspace" || e.key === "Delete" || e.key === "0") {
         dispatch({ type: "erase" });
       } else if (e.key === "n" || e.key === "N") {
@@ -60,8 +68,21 @@ export default function SudokuBoard({ initialPuzzle }: Props) {
         dispatch({ type: "select", index: null });
       }
     }
+    function onKeyUp(e: KeyboardEvent) {
+      if (e.key === "Shift") setShiftHeld(false);
+    }
+    // Releasing Shift in another window never fires keyup here, so reset on blur.
+    function onBlur() {
+      setShiftHeld(false);
+    }
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
   }, []);
 
   function newGame(difficulty: Difficulty) {
@@ -113,7 +134,7 @@ export default function SudokuBoard({ initialPuzzle }: Props) {
           return (
             <button
               key={digit}
-              onClick={() => dispatch({ type: "input", digit })}
+              onClick={(e) => dispatch({ type: "input", digit, asNote: e.shiftKey })}
               disabled={isComplete}
               aria-hidden={isComplete}
               // Stay in the grid while hidden so the other buttons keep their positions.
@@ -137,13 +158,15 @@ export default function SudokuBoard({ initialPuzzle }: Props) {
         <button
           onClick={() => dispatch({ type: "toggleNoteMode" })}
           aria-pressed={noteMode}
+          title="Toggle notes, or hold Shift while entering a number"
           className={`flex-1 rounded-md border py-2 text-sm ${
-            noteMode
+            notesActive
               ? "border-blue-600 bg-blue-600 text-white"
               : "border-neutral-300 bg-white text-black hover:bg-neutral-100"
           }`}
         >
-          Notes {noteMode ? "on" : "off"}
+          Notes {notesActive ? "on" : "off"}
+          {shiftHeld && !noteMode && <span className="ml-1 opacity-80">(Shift)</span>}
         </button>
       </div>
     </div>

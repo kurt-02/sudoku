@@ -138,6 +138,14 @@ describe("gameReducer", () => {
     expect(s.cells[EMPTY].notes).toEqual([1]);
   });
 
+  it("writes a note with asNote while note mode stays off", () => {
+    let s = gameReducer(start, { type: "select", index: EMPTY });
+    s = gameReducer(s, { type: "input", digit: 7, asNote: true });
+    expect(s.noteMode).toBe(false);
+    expect(s.cells[EMPTY].value).toBeNull();
+    expect(s.cells[EMPTY].notes).toEqual([7]);
+  });
+
   it("moves the selection and wraps at the edges", () => {
     let s = gameReducer(start, { type: "move", direction: "up" });
     expect(s.selectedIndex).toBe(0);
