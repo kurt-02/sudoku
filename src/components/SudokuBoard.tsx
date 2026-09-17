@@ -2,8 +2,10 @@
 
 import { useEffect, useEffectEvent, useMemo, useReducer, useState } from "react";
 import SudokuCell from "@/components/SudokuCells";
+import WinScreen from "@/components/WinScreen";
 import { formatTime } from "@/lib/format";
 import { clearSavedGame, writeSavedGame } from "@/lib/savedGame";
+import { recordLoss, recordStart, recordWin, updateStats, type DifficultyStats } from "@/lib/stats";
 import {
   blockingPeers,
   canUndo,
@@ -50,6 +52,8 @@ type Props = {
   difficulty: Difficulty;
   /** Leave the game and go back to the difficulty menu. Progress stays saved. */
   onExit: () => void;
+  /** Start a fresh puzzle at this difficulty (from the win screen). */
+  onNewGame: (difficulty: Difficulty) => void;
 };
 
 export default function SudokuBoard({
@@ -59,6 +63,7 @@ export default function SudokuBoard({
   initialHintsUsed,
   difficulty,
   onExit,
+  onNewGame,
 }: Props) {
   const [history, dispatch] = useReducer(historyReducer, initialBoard, createHistory);
   const state = history.present;
@@ -108,7 +113,26 @@ export default function SudokuBoard({
     else writeSavedGame({ difficulty, cells, noteMode, seconds, mistakes, hintsUsed });
   }, [finished, difficulty, cells, noteMode, seconds, mistakes, hintsUsed]);
 
+  // Filled in by the move that solves the puzzle; drives the win screen.
+  const [winResult, setWinResult] = useState<{
+    stats: DifficultyStats;
+    isNewBest: boolean;
+  } | null>(null);
+
+  function recordSolve() {
+    let previousBest: number | null = null;
+    const stats = updateStats((s) => {
+      previousBest = s.byDifficulty[difficulty].bestSeconds;
+      return recordWin(s, difficulty, seconds);
+    });
+    setWinResult({
+      stats: stats.byDifficulty[difficulty],
+      isNewBest: previousBest === null || seconds < previousBest,
+    });
+  }
+
   function retry() {
+    updateStats((s) => recordStart(s, difficulty));
     dispatch({ type: "load", puzzle: gridToString(givens) });
     setSeconds(0);
     setMistakes(0);
@@ -199,17 +223,18 @@ export default function SudokuBoard({
         // Wrong numbers still go in (and show red), but shake and cost a mistake.
         rejectFeedback(i, blockers);
         setMistakes((m) => Math.min(m + 1, MAX_MISTAKES));
+        if (mistakes + 1 >= MAX_MISTAKES) updateStats((s) => recordLoss(s, difficulty));
       }
       if (!noteMode && !asNote) {
         // The reducer is pure, so preview the move to see what it completes.
         const next = gameReducer(state, action);
         if (next !== state) celebrateCompletions(gridFromCells(next.cells), i);
+        if (next !== state && isSolved(next.cells)) recordSolve();
       }
     }
     dispatch(action);
   }
 
-  /** Fills one empty or wrong cell with its correct number. */
   // Briefly dims everything except the hinted cell, like a camera focusing on it.
   const [spotlight, setSpotlight] = useState({ id: 0, on: false });
   useEffect(() => {
@@ -218,6 +243,7 @@ export default function SudokuBoard({
     return () => clearTimeout(timer);
   }, [spotlight]);
 
+  /** Points at one empty or wrong cell and shows its correct number, without entering it. */
   function giveHint() {
     if (paused || finished || !solution) return;
     // An unused hint is still showing: point at it again instead of spending another.
@@ -332,6 +358,18 @@ export default function SudokuBoard({
         aria-label="Sudoku board"
         className="relative grid aspect-square w-full grid-cols-9 border-2 border-neutral-800"
       >
+        {solved && winResult && (
+          <WinScreen
+            difficulty={difficulty}
+            seconds={seconds}
+            mistakes={mistakes}
+            hintsUsed={hintsUsed}
+            stats={winResult.stats}
+            isNewBest={winResult.isNewBest}
+            onNewGame={() => onNewGame(difficulty)}
+            onExit={onExit}
+          />
+        )}
         {gameOver && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-white/95">
             <p className="text-2xl font-semibold text-black" role="status">
@@ -390,12 +428,6 @@ export default function SudokuBoard({
           />
         ))}
       </div>
-
-      {solved && (
-        <p className="text-lg font-semibold text-green-600" role="status">
-          Solved in {formatTime(seconds)}! Nice work.
-        </p>
-      )}
 
       <div className="grid grid-cols-9 gap-1">
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => {

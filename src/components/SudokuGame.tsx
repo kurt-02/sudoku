@@ -4,6 +4,7 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import DifficultyMenu from "@/components/DifficultyMenu";
 import SudokuBoard from "@/components/SudokuBoard";
 import { parseSavedGame, readSavedGameRaw, subscribeSavedGame } from "@/lib/savedGame";
+import { recordAbandon, recordStart, updateStats } from "@/lib/stats";
 import { createBoardState, generatePuzzle, gridToString, type Difficulty } from "@/lib/sudoku";
 import type { BoardState } from "@/types/game";
 
@@ -26,6 +27,11 @@ export default function SudokuGame() {
   const saved = useMemo(() => parseSavedGame(savedRaw), [savedRaw]);
 
   function startGame(difficulty: Difficulty) {
+    // Read fresh: the board may have just cleared the save without this component re-rendering.
+    const unfinished = parseSavedGame(readSavedGameRaw());
+    updateStats((s) =>
+      recordStart(unfinished ? recordAbandon(s, unfinished.difficulty) : s, difficulty),
+    );
     // Generated on click (in the browser), so there's no server/client hydration mismatch.
     const puzzle = gridToString(generatePuzzle(difficulty).puzzle);
     setGame((prev) => ({
@@ -63,6 +69,7 @@ export default function SudokuGame() {
       initialHintsUsed={game.initialHintsUsed}
       difficulty={game.difficulty}
       onExit={() => setGame(null)}
+      onNewGame={startGame}
     />
   );
 }
