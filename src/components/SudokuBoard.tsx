@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useReducer } from "react";
 import SudokuCell from "@/components/SudokuCells";
 import {
+  completedDigits,
   createBoardState,
   findConflicts,
   gameReducer,
@@ -33,7 +34,9 @@ export default function SudokuBoard({ initialPuzzle }: Props) {
   const [state, dispatch] = useReducer(gameReducer, initialPuzzle, createBoardState);
   const { cells, selectedIndex, noteMode } = state;
 
-  const conflicts = useMemo(() => findConflicts(gridFromCells(cells)), [cells]);
+  const grid = useMemo(() => gridFromCells(cells), [cells]);
+  const conflicts = useMemo(() => findConflicts(grid), [grid]);
+  const completed = useMemo(() => completedDigits(grid), [grid]);
   const solved = useMemo(() => isSolved(cells), [cells]);
   const peers = useMemo(
     () => new Set(selectedIndex === null ? [] : peersOf(selectedIndex)),
@@ -105,15 +108,23 @@ export default function SudokuBoard({ initialPuzzle }: Props) {
       )}
 
       <div className="grid grid-cols-9 gap-1">
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
-          <button
-            key={digit}
-            onClick={() => dispatch({ type: "input", digit })}
-            className="rounded-md border border-neutral-300 bg-white py-2 text-lg text-black hover:bg-neutral-100"
-          >
-            {digit}
-          </button>
-        ))}
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => {
+          const isComplete = completed.has(digit);
+          return (
+            <button
+              key={digit}
+              onClick={() => dispatch({ type: "input", digit })}
+              disabled={isComplete}
+              aria-hidden={isComplete}
+              // Stay in the grid while hidden so the other buttons keep their positions.
+              className={`rounded-md border border-neutral-300 bg-white py-2 text-lg text-black hover:bg-neutral-100 ${
+                isComplete ? "invisible" : ""
+              }`}
+            >
+              {digit}
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex gap-2">

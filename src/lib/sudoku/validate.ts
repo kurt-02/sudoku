@@ -16,6 +16,20 @@ export function findConflicts(grid: Grid): Set<number> {
   return conflicts;
 }
 
+/** Digits placed all 9 times with none of those placements conflicting. */
+export function completedDigits(grid: Grid): Set<number> {
+  const conflicts = findConflicts(grid);
+  const counts = Array<number>(10).fill(0);
+  const broken = new Set<number>();
+  grid.forEach((digit, i) => {
+    counts[digit]++;
+    if (conflicts.has(i)) broken.add(digit);
+  });
+  const done = new Set<number>();
+  for (let d = 1; d <= 9; d++) if (counts[d] === 9 && !broken.has(d)) done.add(d);
+  return done;
+}
+
 /** A board is solved when every cell is filled and nothing conflicts. */
 export function isSolved(cells: Cell[]): boolean {
   const grid = gridFromCells(cells);

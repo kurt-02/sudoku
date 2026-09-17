@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CLUE_TARGETS,
+  completedDigits,
   GRID_SIZE,
   countSolutions,
   createBoardState,
@@ -46,6 +47,18 @@ describe("validate", () => {
     const grid = gridFromString(PUZZLE);
     grid[2] = 5; // row 0 already has a 5 at index 0
     expect([...findConflicts(grid)].sort((a, b) => a - b)).toEqual([0, 2]);
+  });
+
+  it("reports completed digits, ignoring ones with conflicts", () => {
+    expect(completedDigits(gridFromString(PUZZLE)).size).toBe(0);
+    expect(completedDigits(gridFromString(SOLUTION))).toEqual(new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]));
+
+    const grid = gridFromString(SOLUTION);
+    [grid[0], grid[1]] = [grid[1], grid[0]]; // swap a 5 and a 3 in row 0: still 9 of each, but conflicting
+    const done = completedDigits(grid);
+    expect(done.has(5)).toBe(false);
+    expect(done.has(3)).toBe(false);
+    expect(done.has(4)).toBe(true);
   });
 
   it("knows when the board is solved", () => {
