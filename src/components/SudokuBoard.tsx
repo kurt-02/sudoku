@@ -6,15 +6,18 @@ import { formatTime } from "@/lib/format";
 import { clearSavedGame, writeSavedGame } from "@/lib/savedGame";
 import {
   blockingPeers,
+  canUndo,
   colOf,
   completedDigits,
   completedUnits,
+  createHistory,
   digitCounts,
   findConflicts,
   gameReducer,
   givensFromCells,
   gridFromCells,
   gridToString,
+  historyReducer,
   isSolved,
   MAX_MISTAKES,
   peersOf,
@@ -49,7 +52,8 @@ export default function SudokuBoard({
   difficulty,
   onExit,
 }: Props) {
-  const [state, dispatch] = useReducer(gameReducer, initialBoard);
+  const [history, dispatch] = useReducer(historyReducer, initialBoard, createHistory);
+  const state = history.present;
   const { cells, selectedIndex, noteMode } = state;
 
   // Generated puzzles have exactly one solution, so it can be recovered from the clues alone.
@@ -189,6 +193,12 @@ export default function SudokuBoard({
   // Effect events always see the latest render's state, so the listener doesn't need re-binding.
   const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
     if (e.key === "Shift") setShiftHeld(true);
+    // Ctrl+Z / Cmd+Z undoes, matching every other app.
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === "KeyZ") {
+      e.preventDefault();
+      if (!paused && !finished) dispatch({ type: "undo" });
+      return;
+    }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if ((e.key === "p" || e.key === "P") && !finished) {
       setPaused((p) => !p);
@@ -370,6 +380,15 @@ export default function SudokuBoard({
       </div>
 
       <div className="flex gap-2">
+        <button
+          onClick={() => dispatch({ type: "undo" })}
+          // Mistakes already made stay counted; undo only restores the board.
+          disabled={paused || finished || !canUndo(history)}
+          title="Undo (Ctrl+Z)"
+          className="flex-1 rounded-md border border-neutral-300 bg-white py-2 text-sm text-black hover:bg-neutral-100 disabled:opacity-50"
+        >
+          Undo
+        </button>
         <button
           onClick={() => dispatch({ type: "erase" })}
           disabled={paused || gameOver}
