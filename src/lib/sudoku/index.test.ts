@@ -5,6 +5,7 @@ import {
   GRID_SIZE,
   countSolutions,
   createBoardState,
+  digitCounts,
   findConflicts,
   gameReducer,
   generatePuzzle,
@@ -47,6 +48,13 @@ describe("validate", () => {
     const grid = gridFromString(PUZZLE);
     grid[2] = 5; // row 0 already has a 5 at index 0
     expect([...findConflicts(grid)].sort((a, b) => a - b)).toEqual([0, 2]);
+  });
+
+  it("counts each digit on the board", () => {
+    const counts = digitCounts(gridFromString(PUZZLE));
+    expect(counts[0]).toBe(51); // 30 givens
+    expect(counts[5]).toBe(3);
+    expect(counts.slice(1).reduce((a, b) => a + b)).toBe(30);
   });
 
   it("reports completed digits, ignoring ones with conflicts", () => {

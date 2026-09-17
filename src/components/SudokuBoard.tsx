@@ -5,6 +5,7 @@ import SudokuCell from "@/components/SudokuCells";
 import {
   completedDigits,
   createBoardState,
+  digitCounts,
   findConflicts,
   gameReducer,
   generatePuzzle,
@@ -37,6 +38,7 @@ export default function SudokuBoard({ initialPuzzle }: Props) {
   const grid = useMemo(() => gridFromCells(cells), [cells]);
   const conflicts = useMemo(() => findConflicts(grid), [grid]);
   const completed = useMemo(() => completedDigits(grid), [grid]);
+  const counts = useMemo(() => digitCounts(grid), [grid]);
   const solved = useMemo(() => isSolved(cells), [cells]);
   const peers = useMemo(
     () => new Set(selectedIndex === null ? [] : peersOf(selectedIndex)),
@@ -131,18 +133,22 @@ export default function SudokuBoard({ initialPuzzle }: Props) {
       <div className="grid grid-cols-9 gap-1">
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => {
           const isComplete = completed.has(digit);
+          // Clamp at 0: over-placing a digit (a mistake) shouldn't show a negative count.
+          const remaining = Math.max(0, 9 - counts[digit]);
           return (
             <button
               key={digit}
               onClick={(e) => dispatch({ type: "input", digit, asNote: e.shiftKey })}
               disabled={isComplete}
               aria-hidden={isComplete}
+              aria-label={`${digit}, ${remaining} left`}
               // Stay in the grid while hidden so the other buttons keep their positions.
-              className={`rounded-md border border-neutral-300 bg-white py-2 text-lg text-black hover:bg-neutral-100 ${
+              className={`flex flex-col items-center rounded-md border border-neutral-300 bg-white py-1.5 text-black hover:bg-neutral-100 ${
                 isComplete ? "invisible" : ""
               }`}
             >
-              {digit}
+              <span className="text-lg leading-tight">{digit}</span>
+              <span className="text-[0.65rem] leading-tight text-neutral-600">{remaining}</span>
             </button>
           );
         })}

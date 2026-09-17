@@ -16,15 +16,19 @@ export function findConflicts(grid: Grid): Set<number> {
   return conflicts;
 }
 
+/** How many times each digit is on the board, indexed by digit (index 0 counts empty cells). */
+export function digitCounts(grid: Grid): number[] {
+  const counts = Array<number>(10).fill(0);
+  for (const digit of grid) counts[digit]++;
+  return counts;
+}
+
 /** Digits placed all 9 times with none of those placements conflicting. */
 export function completedDigits(grid: Grid): Set<number> {
   const conflicts = findConflicts(grid);
-  const counts = Array<number>(10).fill(0);
+  const counts = digitCounts(grid);
   const broken = new Set<number>();
-  grid.forEach((digit, i) => {
-    counts[digit]++;
-    if (conflicts.has(i)) broken.add(digit);
-  });
+  conflicts.forEach((i) => broken.add(grid[i]));
   const done = new Set<number>();
   for (let d = 1; d <= 9; d++) if (counts[d] === 9 && !broken.has(d)) done.add(d);
   return done;
