@@ -30,6 +30,10 @@ import {
 } from "@/lib/sudoku";
 import type { BoardState } from "@/types/game";
 
+const CONTROL =
+  "flex flex-col items-center gap-0.5 rounded-md border border-neutral-300 bg-white py-2 text-sm text-black hover:bg-neutral-100 disabled:opacity-50";
+const CAPTION = "text-[0.65rem] text-neutral-500";
+
 const ARROWS: Record<string, Direction> = {
   ArrowUp: "up",
   ArrowDown: "down",
@@ -256,6 +260,8 @@ export default function SudokuBoard({
       dispatch({ type: "erase" });
     } else if (e.key === "h" || e.key === "H") {
       giveHint();
+    } else if (e.key === "a" || e.key === "A") {
+      dispatch({ type: "autoNotes" });
     } else if (e.key === "n" || e.key === "N") {
       dispatch({ type: "toggleNoteMode" });
     } else if (e.key === "Escape") {
@@ -421,46 +427,56 @@ export default function SudokuBoard({
         })}
       </div>
 
-      <div className="flex gap-2">
+      <div className="grid grid-cols-5 gap-2">
         <button
           onClick={() => dispatch({ type: "undo" })}
           // Mistakes already made stay counted; undo only restores the board.
           disabled={paused || finished || !canUndo(history)}
           title="Undo (Ctrl+Z)"
-          className="flex-1 rounded-md border border-neutral-300 bg-white py-2 text-sm text-black hover:bg-neutral-100 disabled:opacity-50"
+          className={CONTROL}
         >
-          Undo
+          <span>Undo</span>
+          <span className={CAPTION}>Ctrl+Z</span>
         </button>
         <button
           onClick={() => dispatch({ type: "erase" })}
           disabled={paused || gameOver}
-          className="flex-1 rounded-md border border-neutral-300 bg-white py-2 text-sm text-black hover:bg-neutral-100"
+          title="Erase (Backspace)"
+          className={CONTROL}
         >
-          Erase
+          <span>Erase</span>
+          <span className={CAPTION}>Del</span>
         </button>
         <button
           onClick={() => dispatch({ type: "toggleNoteMode" })}
           disabled={paused || gameOver}
           aria-pressed={noteMode}
-          title="Toggle notes, or hold Shift while entering a number"
-          className={`flex-1 rounded-md border py-2 text-sm ${
-            notesActive
-              ? "border-blue-600 bg-blue-600 text-white"
-              : "border-neutral-300 bg-white text-black hover:bg-neutral-100"
-          }`}
+          title="Toggle notes (N), or hold Shift while entering a number"
+          className={`${CONTROL} ${notesActive ? "border-blue-600! bg-blue-600! text-white!" : ""}`}
         >
-          Notes {notesActive ? "on" : "off"}
-          {shiftHeld && !noteMode && <span className="ml-1 opacity-80">(Shift)</span>}
+          <span>Notes</span>
+          <span className={notesActive ? "text-[0.65rem] text-blue-100" : CAPTION}>
+            {shiftHeld && !noteMode ? "Shift" : notesActive ? "On" : "Off"}
+          </span>
+        </button>
+        <button
+          onClick={() => dispatch({ type: "autoNotes" })}
+          disabled={paused || gameOver}
+          title="Fill every empty cell with its possible numbers (A)"
+          className={CONTROL}
+        >
+          <span>Auto</span>
+          <span className={CAPTION}>notes</span>
         </button>
         <button
           onClick={giveHint}
           disabled={paused || finished || (hintsLeft === 0 && activeHint === null)}
           title="Show where a number goes (H)"
           aria-label={`Hint, ${hintsLeft} left`}
-          className="flex-1 rounded-md border border-neutral-300 bg-white py-2 text-sm text-black hover:bg-neutral-100 disabled:opacity-50"
+          className={CONTROL}
         >
-          Hint{" "}
-          <span className="ml-0.5 rounded-full bg-blue-600 px-1.5 text-xs font-semibold text-white">
+          <span>Hint</span>
+          <span className="rounded-full bg-blue-600 px-1.5 text-[0.65rem] font-semibold text-white">
             {hintsLeft}
           </span>
         </button>

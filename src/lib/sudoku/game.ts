@@ -2,7 +2,9 @@ import type { BoardState, Cell } from "@/types/game";
 import { cellsFromString } from "./board";
 import { colOf, peersOf, rowOf } from "./coords";
 import { gridFromCells } from "./grid";
-import { blockingPeers } from "./validate";
+import { blockingPeers, canPlace } from "./validate";
+
+const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 export type Direction = "up" | "down" | "left" | "right";
 
@@ -15,6 +17,8 @@ export type GameAction =
   /** `asNote` writes a pencil note even when note mode is off (e.g. while Shift is held). */
   | { type: "input"; digit: number; asNote?: boolean }
   | { type: "erase" }
+  /** Fills every empty cell's notes with all digits that could still go there. */
+  | { type: "autoNotes" }
   | { type: "toggleNoteMode" }
   | { type: "load"; puzzle: string };
 
@@ -96,6 +100,22 @@ export function gameReducer(state: BoardState, action: GameAction): BoardState {
       const cell = state.cells[i];
       if (cell.isGiven || (cell.value === null && cell.notes.length === 0)) return state;
       return { ...state, cells: updateCell(state.cells, i, { value: null, notes: [] }) };
+    }
+
+    case "autoNotes": {
+      const grid = gridFromCells(state.cells);
+      let changed = false;
+      // Replaces existing notes, which also clears out ones that are no longer possible.
+      const cells = state.cells.map((cell, i) => {
+        if (cell.value !== null) return cell;
+        const notes = DIGITS.filter((d) => canPlace(grid, i, d));
+        if (notes.length === cell.notes.length && notes.every((d, k) => d === cell.notes[k])) {
+          return cell;
+        }
+        changed = true;
+        return { ...cell, notes };
+      });
+      return changed ? { ...state, cells } : state;
     }
 
     case "load":

@@ -182,6 +182,26 @@ describe("gameReducer", () => {
     expect(s.cells[EMPTY].notes).toEqual([4]);
   });
 
+  it("auto-notes fills every empty cell with its possible digits", () => {
+    const s = gameReducer(start, { type: "autoNotes" });
+    // Index 2: row 0 has 5,3,7; column 2 has 8; box 0 has 5,3,6,9,8 -> 1,2,4 remain.
+    expect(s.cells[EMPTY].notes).toEqual([1, 2, 4]);
+    expect(s.cells[0].notes).toEqual([]); // givens get no notes
+    s.cells.forEach((c) => c.value === null && expect(c.notes.length).toBeGreaterThan(0));
+    // Running it again changes nothing.
+    expect(gameReducer(s, { type: "autoNotes" })).toBe(s);
+  });
+
+  it("auto-notes replaces stale notes", () => {
+    let s = gameReducer(start, { type: "select", index: EMPTY });
+    s = gameReducer(s, { type: "input", digit: 4, asNote: true });
+    s = gameReducer(s, { type: "input", digit: 1, asNote: true });
+    s = gameReducer(s, { type: "select", index: 3 });
+    s = { ...s, cells: s.cells.map((c, i) => (i === 3 ? { ...c, value: 1 } : c)) }; // 1 now in row
+    s = gameReducer(s, { type: "autoNotes" });
+    expect(s.cells[EMPTY].notes).toEqual([2, 4]);
+  });
+
   it("moves the selection and wraps at the edges", () => {
     let s = gameReducer(start, { type: "move", direction: "up" });
     expect(s.selectedIndex).toBe(0);
