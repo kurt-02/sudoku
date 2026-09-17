@@ -29,6 +29,40 @@
       transform: translateX(3px);
     }
   }
+
+  /* A cell in a just-completed row, column, box, or number. */
+  --animate-celebrate: celebrate 0.5s ease-out both;
+
+  @keyframes celebrate {
+    0%,
+    100% {
+      transform: scale(1);
+      background-color: transparent;
+    }
+    40% {
+      transform: scale(0.85);
+      background-color: var(--color-emerald-200);
+    }
+  }
+
+  /* A number-pad button leaving once all nine of its number are placed. */
+  --animate-pad-pop: pad-pop 0.5s ease-in forwards;
+
+  @keyframes pad-pop {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    30% {
+      transform: scale(1.2);
+      opacity: 1;
+      background-color: var(--color-emerald-200);
+    }
+    100% {
+      transform: scale(0);
+      opacity: 0;
+    }
+  }
 }
 
 @media (prefers-color-scheme: dark) {

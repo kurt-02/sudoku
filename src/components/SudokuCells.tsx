@@ -16,6 +16,10 @@ type Props = {
   shakeKey: number | null;
   /** Holds the digit that blocked the rejected note. */
   isBlocking: boolean;
+  /** Changes on each completion this cell is part of, replaying the pulse; null when idle. */
+  celebrateKey: number | null;
+  /** Milliseconds to wait before pulsing, so completions ripple outward. */
+  celebrateDelay: number;
   onSelect: (index: number) => void;
 };
 
@@ -30,6 +34,8 @@ export default function SudokuCell({
   isConflict,
   shakeKey,
   isBlocking,
+  celebrateKey,
+  celebrateDelay,
   onSelect,
 }: Props) {
   const row = rowOf(index);
@@ -62,12 +68,17 @@ export default function SudokuCell({
       className={classes}
       onClick={() => onSelect(index)}
     >
-      {/* A new key remounts this wrapper, so repeated rejections replay the animation. */}
+      {/* A new key remounts this wrapper, so repeated shakes or pulses replay the animation. */}
       <div
-        key={shakeKey ?? "idle"}
+        key={`${shakeKey ?? "-"}:${celebrateKey ?? "-"}`}
         className={`flex size-full items-center justify-center ${
-          shakeKey !== null ? "motion-safe:animate-shake" : ""
+          shakeKey !== null
+            ? "motion-safe:animate-shake"
+            : celebrateKey !== null
+              ? "motion-safe:animate-celebrate"
+              : ""
         }`}
+        style={celebrateKey !== null ? { animationDelay: `${celebrateDelay}ms` } : undefined}
       >
         {cell.value ??
           (cell.notes.length > 0 && (

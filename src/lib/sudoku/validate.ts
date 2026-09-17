@@ -1,5 +1,5 @@
 import type { Cell } from "@/types/game";
-import { peersOf } from "./coords";
+import { boxIndices, colIndices, peersOf, rowIndices } from "./coords";
 import { gridFromCells, type Grid } from "./grid";
 
 /** Whether `digit` can go at `index` without repeating in its row, column, or box. */
@@ -37,6 +37,26 @@ export function completedDigits(grid: Grid): Set<number> {
   const done = new Set<number>();
   for (let d = 1; d <= 9; d++) if (counts[d] === 9 && !broken.has(d)) done.add(d);
   return done;
+}
+
+export type Unit = { key: string; cells: number[] };
+
+const UNITS: Unit[] = Array.from({ length: 9 }, (_, n) => [
+  { key: `row-${n}`, cells: rowIndices(n) },
+  { key: `col-${n}`, cells: colIndices(n) },
+  { key: `box-${n}`, cells: boxIndices(n) },
+]).flat();
+
+/**
+ * Rows, columns, and boxes that are fully and correctly filled. With a solution, cells must
+ * match it; without one, the unit just needs all nine digits.
+ */
+export function completedUnits(grid: Grid, solution?: Grid | null): Unit[] {
+  return UNITS.filter(({ cells }) =>
+    solution
+      ? cells.every((i) => grid[i] !== 0 && grid[i] === solution[i])
+      : new Set(cells.map((i) => grid[i]).filter((d) => d !== 0)).size === 9,
+  );
 }
 
 /** A board is solved when every cell is filled and nothing conflicts. */

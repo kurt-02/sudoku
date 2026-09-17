@@ -3,6 +3,7 @@ import {
   CLUE_TARGETS,
   blockingPeers,
   completedDigits,
+  completedUnits,
   GRID_SIZE,
   countSolutions,
   createBoardState,
@@ -68,6 +69,23 @@ describe("validate", () => {
     expect(done.has(5)).toBe(false);
     expect(done.has(3)).toBe(false);
     expect(done.has(4)).toBe(true);
+  });
+
+  it("finds completed rows, columns, and boxes", () => {
+    const solution = gridFromString(SOLUTION);
+    expect(completedUnits(gridFromString(PUZZLE), solution)).toEqual([]);
+    expect(completedUnits(solution, solution)).toHaveLength(27);
+
+    const grid = gridFromString(SOLUTION);
+    grid[80] = 0; // bottom-right cell empty: row 8, column 8, and box 8 are incomplete
+    const keys = completedUnits(grid, solution).map((u) => u.key);
+    expect(keys).toHaveLength(24);
+    expect(keys).not.toContain("row-8");
+    expect(keys).not.toContain("col-8");
+    expect(keys).not.toContain("box-8");
+
+    grid[80] = 3; // wrong digit: still not complete against the solution
+    expect(completedUnits(grid, solution)).toHaveLength(24);
   });
 
   it("knows when the board is solved", () => {
