@@ -62,17 +62,26 @@ export default function SudokuBoard({ initialPuzzle }: Props) {
     return () => clearTimeout(timer);
   }, [shake]);
 
+  function rejectFeedback(target: number, blockers: number[]) {
+    setShake((s) => ({ target, blockers: new Set(blockers), id: s.id + 1 }));
+    // Haptic buzz on devices that support it (most Android phones; not iOS Safari).
+    navigator.vibrate?.(80);
+  }
+
   function enterDigit(digit: number, asNote: boolean) {
     const i = selectedIndex;
-    if (i !== null && (noteMode || asNote)) {
+    if (i !== null && !cells[i].isGiven) {
       const cell = cells[i];
       const blockers = blockingPeers(grid, i, digit);
-      const isAddingNote = !cell.isGiven && cell.value === null && !cell.notes.includes(digit);
-      if (isAddingNote && blockers.length > 0) {
-        setShake((s) => ({ target: i, blockers: new Set(blockers), id: s.id + 1 }));
-        // Haptic buzz on devices that support it (most Android phones; not iOS Safari).
-        navigator.vibrate?.(80);
-        return;
+      if (noteMode || asNote) {
+        // Impossible notes are refused outright.
+        if (cell.value === null && !cell.notes.includes(digit) && blockers.length > 0) {
+          rejectFeedback(i, blockers);
+          return;
+        }
+      } else if (cell.value !== digit && blockers.length > 0) {
+        // Conflicting numbers still go in (and show red), but get the same shake.
+        rejectFeedback(i, blockers);
       }
     }
     dispatch({ type: "input", digit, asNote });
