@@ -78,10 +78,17 @@ export const games = pgTable(
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     updatedAt,
   },
-  (t) => [index("games_user_status_idx").on(t.userId, t.status)],
+  (t) => [
+    index("games_user_status_idx").on(t.userId, t.status),
+    // Leaderboards scan finished games per difficulty.
+    index("games_leaderboard_idx").on(t.difficulty, t.status),
+  ],
 ).enableRLS();
 
-/** Running totals per player and difficulty; the leaderboard ranks these rows. */
+/**
+ * Running totals per player and difficulty, shown in the player's own stats. They can include
+ * guest progress imported on sign-in, so the leaderboard never reads them (see db/leaderboard.ts).
+ */
 export const userStats = pgTable(
   "user_stats",
   {
@@ -98,13 +105,7 @@ export const userStats = pgTable(
     bestStreak: integer("best_streak").notNull().default(0),
     updatedAt,
   },
-  (t) => [
-    primaryKey({ columns: [t.userId, t.difficulty] }),
-    // Leaderboard orderings: fastest times, most wins, longest streaks.
-    index("user_stats_best_time_idx").on(t.difficulty, t.bestSeconds),
-    index("user_stats_wins_idx").on(t.difficulty, t.won),
-    index("user_stats_streak_idx").on(t.difficulty, t.bestStreak),
-  ],
+  (t) => [primaryKey({ columns: [t.userId, t.difficulty] })],
 ).enableRLS();
 
 /** Settings that follow the account across devices. */

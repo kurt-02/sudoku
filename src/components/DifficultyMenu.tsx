@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import AccountPanel from "@/components/AccountPanel";
+import LeaderboardDialog from "@/components/LeaderboardDialog";
 import SettingsDialog from "@/components/SettingsDialog";
 import StatsDialog from "@/components/StatsDialog";
 import { button } from "@/components/ui/button";
-import { CloseIcon, SettingsIcon, StatsIcon } from "@/components/ui/icons";
+import { CloseIcon, SettingsIcon, StatsIcon, TrophyIcon } from "@/components/ui/icons";
 import { formatTime } from "@/lib/format";
 import type { SavedGame } from "@/lib/savedGame";
 import { CLUE_TARGETS, type Difficulty } from "@/lib/sudoku";
@@ -103,6 +104,7 @@ export default function DifficultyMenu({
   const filled = saved ? saved.cells.filter((c) => c.value !== null).length : 0;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
 
   return (
     <div className="flex w-full max-w-[26rem] flex-col gap-7 py-10 text-left">
@@ -117,6 +119,14 @@ export default function DifficultyMenu({
           </p>
         </div>
         <div className="flex shrink-0 gap-1">
+          <button
+            onClick={() => setLeaderboardOpen(true)}
+            aria-label="Leaderboard"
+            title="Leaderboard"
+            className={button.icon}
+          >
+            <TrophyIcon />
+          </button>
           <button
             onClick={() => setStatsOpen(true)}
             aria-label="Your stats"
@@ -206,6 +216,7 @@ export default function DifficultyMenu({
 
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
       {statsOpen && <StatsDialog onClose={() => setStatsOpen(false)} />}
+      {leaderboardOpen && <LeaderboardDialog onClose={() => setLeaderboardOpen(false)} />}
     </div>
   );
 }

@@ -22,6 +22,13 @@
       "when": 1789701055210,
       "tag": "0002_imported_games",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789713508010,
+      "tag": "0003_leaderboard",
+      "breakpoints": true
     }
   ]
 }

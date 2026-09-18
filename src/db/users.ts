@@ -37,3 +37,16 @@ export async function userExists(userId: string): Promise<boolean> {
 export async function deleteUser(userId: string): Promise<void> {
   await getDb().delete(users).where(eq(users.id, userId));
 }
+
+export async function getLeaderboardVisibility(userId: string): Promise<boolean> {
+  const [row] = await getDb()
+    .select({ show: users.showOnLeaderboard })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return row?.show ?? true;
+}
+
+export async function setLeaderboardVisibility(userId: string, show: boolean): Promise<void> {
+  await getDb().update(users).set({ showOnLeaderboard: show }).where(eq(users.id, userId));
+}

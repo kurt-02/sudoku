@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getMyStatsAction } from "@/app/actions/account";
 import { useAccountGames } from "@/components/AccountContext";
 import Dialog from "@/components/ui/Dialog";
+import Segmented from "@/components/ui/Segmented";
 import { formatTime } from "@/lib/format";
 import { averageWinSeconds, readStats, winRate, type Stats } from "@/lib/stats";
 import type { Difficulty } from "@/lib/sudoku";
@@ -13,6 +14,10 @@ type Props = {
 };
 
 const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
+const DIFFICULTY_TABS = DIFFICULTIES.map((d) => ({
+  value: d,
+  label: d.charAt(0).toUpperCase() + d.slice(1),
+}));
 
 /** Opens on the difficulty played most, so the first thing shown is the most relevant. */
 function mostPlayed(stats: Stats): Difficulty {
@@ -66,25 +71,12 @@ export default function StatsDialog({ onClose }: Props) {
   return (
     <Dialog title="Stats" onClose={onClose}>
       <div className="px-2 pb-2">
-        <div
-          role="tablist"
-          aria-label="Difficulty"
-          className="grid grid-cols-3 gap-1 rounded-xl bg-ink/60 p-1"
-        >
-          {DIFFICULTIES.map((d) => (
-            <button
-              key={d}
-              role="tab"
-              aria-selected={d === difficulty}
-              onClick={() => setPicked(d)}
-              className={`rounded-lg py-1.5 text-sm font-medium capitalize transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${
-                d === difficulty ? "bg-surface-hover text-fg" : "text-muted hover:text-fg"
-              }`}
-            >
-              {d}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          label="Difficulty"
+          options={DIFFICULTY_TABS}
+          value={difficulty}
+          onChange={setPicked}
+        />
 
         {/* Fixed height, so switching tabs (or loading) doesn't make the sheet jump. */}
         <div className="flex min-h-[18.75rem] flex-col justify-center">

@@ -75,10 +75,24 @@ export default function PrivacyPage() {
           When you first sign in on a browser where you played as a guest, that browser&apos;s stats
           and unfinished game are moved into your account.
         </p>
+      </section>
+
+      <section>
+        <h2>Leaderboard</h2>
         <p>
-          Your information isn&apos;t shown to other players. If a public leaderboard is added
-          later, this policy will be updated first to explain what it shows, and you&apos;ll be able
-          to hide yourself from it.
+          Signed-in players can see a leaderboard for each difficulty, ranking fastest wins, most
+          wins, and longest winning streaks. If you&apos;re on it, other signed-in players see:
+        </p>
+        <ul>
+          <li>Your first name and the first letter of your last name (for example, “Kurt V.”).</li>
+          <li>Your Google profile picture.</li>
+          <li>Your rank, and your best time, number of wins, or longest streak.</li>
+        </ul>
+        <p>
+          Your email address and full name are never shown. The leaderboard isn&apos;t visible to
+          people who aren&apos;t signed in. To hide yourself, turn off{" "}
+          <strong>Show me on the leaderboard</strong> at the bottom of the leaderboard; you can turn
+          it back on any time.
         </p>
       </section>
 

@@ -105,6 +105,15 @@ export function StatsIcon() {
   );
 }
 
+export function TrophyIcon() {
+  return (
+    <Icon>
+      <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z" />
+      <path d="M17 6h2.5a1.5 1.5 0 0 1 1.5 1.5V8a4 4 0 0 1-4 4M7 6H4.5A1.5 1.5 0 0 0 3 7.5V8a4 4 0 0 0 4 4" />
+    </Icon>
+  );
+}
+
 export function CloseIcon() {
   return (
     <Icon>
