@@ -60,8 +60,13 @@ export const games = pgTable(
     solution: char("solution", { length: 81 }).notNull(),
     /** The player's board, including notes, as last saved. */
     cells: jsonb("cells").$type<Cell[]>().notNull(),
-    /** Play time banked by the server at each pause; see lib/gameTime.ts for the running part. */
+    /**
+     * The official whole-second play time, written when the game finishes (stats and the
+     * leaderboard read it). While playing, the clock lives in `playedMs`.
+     */
     seconds: integer("seconds").notNull().default(0),
+    /** Play time banked by the server, in milliseconds; see lib/gameTime.ts. */
+    playedMs: integer("played_ms").notNull().default(0),
     mistakes: integer("mistakes").notNull().default(0),
     hintsUsed: integer("hints_used").notNull().default(0),
     status: gameStatus("status").notNull().default("playing"),

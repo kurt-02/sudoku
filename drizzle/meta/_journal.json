@@ -29,6 +29,13 @@
       "when": 1789713508010,
       "tag": "0003_leaderboard",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789717588319,
+      "tag": "0004_played_ms",
+      "breakpoints": true
     }
   ]
 }

@@ -100,7 +100,7 @@ export async function importGuestData(
             puzzle: gridToString(givens),
             solution: gridToString(solution),
             cells: saved.cells,
-            seconds: cap(saved.seconds, MAX_SECONDS),
+            playedMs: cap(saved.seconds, MAX_SECONDS) * 1000,
             mistakes: cap(saved.mistakes),
             hintsUsed: Math.min(cap(saved.hintsUsed), HINTS_BY_DIFFICULTY[saved.difficulty]),
             imported: true,

@@ -3,7 +3,7 @@ import { and, count, desc, eq, gt } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games } from "@/db/schema";
 import { recordServerAbandon, recordServerResult, recordServerStart } from "@/db/stats";
-import { activeSeconds } from "@/lib/gameTime";
+import { activeSeconds, checkInClock, pauseClock, resumeClock } from "@/lib/gameTime";
 import { isValidBoard, matchesSolution } from "@/lib/gameValidation";
 import type { DifficultyStats } from "@/lib/stats";
 import {
@@ -38,7 +38,11 @@ export type SyncResult = "ok" | "gone" | "invalid";
  * Each query reads only the columns it uses. In particular, saves and check-ins (which run every
  * few seconds per player) never read the board JSON or the solution back out of the database.
  */
-const CLOCK = { seconds: games.seconds, resumedAt: games.resumedAt, lastSeenAt: games.lastSeenAt };
+const CLOCK = {
+  playedMs: games.playedMs,
+  resumedAt: games.resumedAt,
+  lastSeenAt: games.lastSeenAt,
+};
 const CLIENT = {
   id: games.id,
   difficulty: games.difficulty,
@@ -59,7 +63,6 @@ const PLAY = {
 
 type ClientRow = { [K in keyof typeof CLIENT]: (typeof games.$inferSelect)[K] };
 type PlayRow = { [K in keyof typeof PLAY]: (typeof games.$inferSelect)[K] };
-type ClockRow = Pick<PlayRow, keyof typeof CLOCK>;
 
 function toClient(row: ClientRow, now: Date): ServerGame {
   return {
@@ -97,17 +100,6 @@ async function findPlaying(userId: string, gameId: string): Promise<PlayRow | nu
   return row ?? null;
 }
 
-/**
- * While the clock runs, bank the time so far and restart it from now. Doing this at every
- * check-in means a gap longer than the grace period (tab closed, laptop asleep) is dropped
- * rather than counted once the player comes back.
- */
-function rebankClock(row: ClockRow, now: Date) {
-  return row.resumedAt
-    ? { seconds: activeSeconds(row, now), resumedAt: now, lastSeenAt: now }
-    : { lastSeenAt: now };
-}
-
 /** The player's unfinished game, if any. */
 export async function getPlayingGame(userId: string): Promise<ServerGame | null> {
   const [row] = await getDb()
@@ -120,10 +112,6 @@ export async function getPlayingGame(userId: string): Promise<ServerGame | null>
 }
 
 /**
- * Starts a game: a new puzzle, or (with `retryOf`) the same puzzle as one of the player's own
- * games. Any other unfinished game is abandoned, so a player has one game in progress.
- */
-/**
  * Games one player may start per minute. Far above real play (a game takes minutes), but it stops
  * a script from filling the database with rows.
  */
@@ -135,6 +123,10 @@ export class TooManyGamesError extends Error {
   }
 }
 
+/**
+ * Starts a game: a new puzzle, or (with `retryOf`) the same puzzle as one of the player's own
+ * games. Any other unfinished game is abandoned, so a player has one game in progress.
+ */
 export async function createGame(
   userId: string,
   options: { difficulty: Difficulty } | { retryOf: string },
@@ -200,7 +192,7 @@ export async function saveGame(
   const now = new Date();
   await getDb()
     .update(games)
-    .set({ cells: snapshot.cells, ...mergeCounts(row, snapshot), ...rebankClock(row, now) })
+    .set({ cells: snapshot.cells, ...mergeCounts(row, snapshot), ...checkInClock(row, now) })
     .where(and(eq(games.id, gameId), eq(games.status, "playing")));
   return "ok";
 }
@@ -214,11 +206,7 @@ export async function setGamePaused(
   const row = await findPlaying(userId, gameId);
   if (!row) return "gone";
   const now = new Date();
-  const clock = paused
-    ? { seconds: activeSeconds(row, now), resumedAt: null, lastSeenAt: now }
-    : row.resumedAt
-      ? rebankClock(row, now)
-      : { resumedAt: now, lastSeenAt: now };
+  const clock = paused ? pauseClock(row, now) : resumeClock(row, now);
   await getDb()
     .update(games)
     .set(clock)
@@ -253,7 +241,9 @@ export async function finishGame(
     return { status: "not-solved" };
   }
   const now = new Date();
-  const seconds = activeSeconds(row, now);
+  // Stop the clock exactly; the official time is the whole seconds of it.
+  const playedMs = pauseClock(row, now).playedMs!;
+  const seconds = Math.floor(playedMs / 1000);
   const cells = snapshot.cells;
   return getDb().transaction(async (tx) => {
     // Only the request that actually moves the game out of "playing" records a result, so a
@@ -265,6 +255,7 @@ export async function finishGame(
         ...mergeCounts(row, snapshot),
         status: snapshot.outcome,
         seconds,
+        playedMs,
         resumedAt: null,
         lastSeenAt: now,
         finishedAt: now,
