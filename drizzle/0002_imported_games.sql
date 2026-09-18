@@ -1,0 +1,1 @@
+ALTER TABLE "games" ADD COLUMN "imported" boolean DEFAULT false NOT NULL;

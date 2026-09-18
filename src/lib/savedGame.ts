@@ -41,12 +41,15 @@ export function isCell(c: unknown): c is Cell {
 /** Parses stored JSON, returning null for anything missing, malformed, or already solved. */
 export function parseSavedGame(raw: string | null): SavedGame | null {
   if (!raw) return null;
-  let data: unknown;
   try {
-    data = JSON.parse(raw);
+    return sanitizeSavedGame(JSON.parse(raw));
   } catch {
     return null;
   }
+}
+
+/** Validates a saved game from anywhere (storage, or sent to the server); null if unusable. */
+export function sanitizeSavedGame(data: unknown): SavedGame | null {
   if (typeof data !== "object" || data === null) return null;
   const { version, difficulty, cells, noteMode, seconds } = data as Record<string, unknown>;
   // Saves from before mistakes were tracked have no count; treat them as 0.

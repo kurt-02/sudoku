@@ -3,8 +3,9 @@
 import { useState } from "react";
 import AccountPanel from "@/components/AccountPanel";
 import SettingsDialog from "@/components/SettingsDialog";
+import StatsDialog from "@/components/StatsDialog";
 import { button } from "@/components/ui/button";
-import { SettingsIcon } from "@/components/ui/icons";
+import { CloseIcon, SettingsIcon, StatsIcon } from "@/components/ui/icons";
 import { formatTime } from "@/lib/format";
 import type { SavedGame } from "@/lib/savedGame";
 import { CLUE_TARGETS, type Difficulty } from "@/lib/sudoku";
@@ -18,6 +19,9 @@ type Props = {
   starting?: boolean;
   /** Why the last attempt to start a game failed. */
   error?: string | null;
+  /** A one-off message, e.g. that guest progress moved into the account. */
+  notice?: string | null;
+  onDismissNotice?: () => void;
   onSelect: (difficulty: Difficulty) => void;
   onContinue: () => void;
 };
@@ -91,11 +95,14 @@ export default function DifficultyMenu({
   saved,
   starting = false,
   error = null,
+  notice = null,
+  onDismissNotice,
   onSelect,
   onContinue,
 }: Props) {
   const filled = saved ? saved.cells.filter((c) => c.value !== null).length : 0;
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
 
   return (
     <div className="flex w-full max-w-[26rem] flex-col gap-7 py-10 text-left">
@@ -109,17 +116,41 @@ export default function DifficultyMenu({
             Pick a difficulty to start. Your progress saves as you play.
           </p>
         </div>
-        <button
-          onClick={() => setSettingsOpen(true)}
-          aria-label="Settings"
-          title="Settings"
-          className={button.icon}
-        >
-          <SettingsIcon />
-        </button>
+        <div className="flex shrink-0 gap-1">
+          <button
+            onClick={() => setStatsOpen(true)}
+            aria-label="Your stats"
+            title="Your stats"
+            className={button.icon}
+          >
+            <StatsIcon />
+          </button>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Settings"
+            title="Settings"
+            className={button.icon}
+          >
+            <SettingsIcon />
+          </button>
+        </div>
       </header>
 
       <AccountPanel user={user} />
+
+      {notice && (
+        <div
+          role="status"
+          className="flex items-start justify-between gap-3 rounded-2xl bg-accent/12 py-3 pr-2 pl-4 text-sm text-fg"
+        >
+          <p className="pt-2">{notice}</p>
+          {onDismissNotice && (
+            <button onClick={onDismissNotice} aria-label="Dismiss" className={button.icon}>
+              <CloseIcon />
+            </button>
+          )}
+        </div>
+      )}
 
       {saved && (
         <button
@@ -174,6 +205,7 @@ export default function DifficultyMenu({
       </section>
 
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+      {statsOpen && <StatsDialog onClose={() => setStatsOpen(false)} />}
     </div>
   );
 }

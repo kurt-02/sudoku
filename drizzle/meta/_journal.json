@@ -15,6 +15,13 @@
       "when": 1789699555863,
       "tag": "0001_game_clock",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789701055210,
+      "tag": "0002_imported_games",
+      "breakpoints": true
     }
   ]
 }

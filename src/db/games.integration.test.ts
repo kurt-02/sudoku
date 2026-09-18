@@ -10,16 +10,36 @@ describe.skipIf(!process.env.RUN_DB_TESTS)(
   "server games (database)",
   { timeout: 30_000 },
   async () => {
-    const { eq } = await import("drizzle-orm");
+    const { and, eq } = await import("drizzle-orm");
     const { getDb } = await import("@/db");
-    const { games, users } = await import("@/db/schema");
+    const { games, users, userStats } = await import("@/db/schema");
     const { createGame, finishGame, getPlayingGame, saveGame, setGamePaused } =
       await import("@/db/games");
     const { upsertGoogleUser } = await import("@/db/users");
     const { getServerSettings, saveServerSettings } = await import("@/db/settings");
     const { resetServerStats } = await import("@/db/stats");
-    const { userStats } = await import("@/db/schema");
-    const { and } = await import("drizzle-orm");
+    const { importGuestData } = await import("@/db/import");
+    const { emptyStats, recordStart, recordWin } = await import("@/lib/stats");
+    const { createBoardState } = await import("@/lib/sudoku");
+
+    const PUZZLE =
+      "530070000600195000098000060800060003400803001700020006060000280000419005000080079";
+    function guestSave(overrides: Record<string, unknown> = {}) {
+      return {
+        version: 1,
+        id: "guest",
+        difficulty: "medium",
+        cells: createBoardState(PUZZLE).cells,
+        noteMode: false,
+        seconds: 120,
+        mistakes: 1,
+        hintsUsed: 0,
+        ...overrides,
+      };
+    }
+    async function clearGames() {
+      await getDb().delete(games).where(eq(games.userId, userId));
+    }
 
     async function statsFor(difficulty: "easy" | "medium" | "hard") {
       const [row] = await getDb()
@@ -181,6 +201,60 @@ describe.skipIf(!process.env.RUN_DB_TESTS)(
       expect(saved?.darkBoard).toBe(true);
       expect(saved?.animations).toBe(true); // invalid value ignored, default kept
       expect(saved).not.toHaveProperty("hacked");
+    });
+
+    it("adds guest stats to the account's, keeping the better best time", async () => {
+      await resetServerStats(userId);
+      const account = (await createGame(userId, { difficulty: "easy" }))!;
+      const accountWin = await win(account.id); // account: started 1, won 1, streak 1
+      const accountBest = accountWin.status === "ok" ? accountWin.seconds : Infinity;
+
+      let guest = emptyStats();
+      guest = recordWin(recordStart(guest, "easy"), "easy", 3);
+      guest = recordWin(recordStart(guest, "easy"), "easy", 900);
+      const result = await importGuestData(userId, { stats: guest });
+      expect(result.stats).toBe(true);
+      const easy = await statsFor("easy");
+      expect(easy).toMatchObject({ started: 3, won: 3, bestStreak: 2, currentStreak: 1 });
+      // The better of the two: the test's instant account win (about 0s) or the guest's 3s.
+      expect(easy.bestSeconds).toBe(Math.min(accountBest, 3));
+    });
+
+    it("caps absurd guest numbers and ignores malformed stats", async () => {
+      await resetServerStats(userId);
+      const guest = emptyStats();
+      guest.byDifficulty.hard = { ...guest.byDifficulty.hard, started: 5_000_000_000, won: 1 };
+      await importGuestData(userId, { stats: guest });
+      expect((await statsFor("hard")).started).toBe(100_000);
+      expect((await importGuestData(userId, { stats: { version: 9 } })).stats).toBe(false);
+    });
+
+    it("imports an unfinished guest game as a flagged, paused server game", async () => {
+      await clearGames();
+      const result = await importGuestData(userId, { game: guestSave() });
+      expect(result.game).toBe("imported");
+      const playing = await getPlayingGame(userId);
+      expect(playing).toMatchObject({ difficulty: "medium", seconds: 120, mistakes: 1 });
+      const [row] = await getDb().select().from(games).where(eq(games.id, playing!.id));
+      expect(row.imported).toBe(true);
+      expect(row.resumedAt).toBeNull();
+      expect(row.solution).toHaveLength(81);
+    });
+
+    it("keeps the account's own game in progress over a guest game", async () => {
+      await clearGames();
+      const account = (await createGame(userId, { difficulty: "hard" }))!;
+      const result = await importGuestData(userId, { game: guestSave() });
+      expect(result.game).toBe("kept-account-game");
+      expect((await getPlayingGame(userId))?.id).toBe(account.id);
+    });
+
+    it("refuses a guest 'puzzle' that isn't a real Sudoku", async () => {
+      await clearGames();
+      // Only three givens: countless solutions, so it can't be a fair puzzle.
+      const cells = createBoardState("5" + "0".repeat(39) + "3" + "0".repeat(39) + "9").cells;
+      expect((await importGuestData(userId, { game: guestSave({ cells }) })).game).toBe("none");
+      expect(await getPlayingGame(userId)).toBeNull();
     });
   },
 );

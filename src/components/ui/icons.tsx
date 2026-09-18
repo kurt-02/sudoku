@@ -97,6 +97,14 @@ export function HintIcon() {
   );
 }
 
+export function StatsIcon() {
+  return (
+    <Icon>
+      <path d="M5 20V11M12 20V4M19 20v-6" />
+    </Icon>
+  );
+}
+
 export function CloseIcon() {
   return (
     <Icon>

@@ -6,6 +6,7 @@ import { startGameAction } from "@/app/actions/game";
 import { AccountContext } from "@/components/AccountContext";
 import AccountSettingsSync from "@/components/AccountSettingsSync";
 import DifficultyMenu from "@/components/DifficultyMenu";
+import GuestDataImport from "@/components/GuestDataImport";
 import SudokuBoard from "@/components/SudokuBoard";
 import type { ServerGame } from "@/db/games";
 import type { Settings } from "@/lib/settings";
@@ -55,6 +56,7 @@ export default function SudokuGame({ user, accountGames, serverGame, accountSett
   const [game, setGame] = useState<Game | null>(null);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
 
   // localStorage only exists in the browser; the server snapshot (null) keeps hydration consistent.
   const savedRaw = useSyncExternalStore(subscribeSavedGame, readSavedGameRaw, () => null);
@@ -131,6 +133,7 @@ export default function SudokuGame({ user, accountGames, serverGame, accountSett
   return (
     <AccountContext value={accountGames}>
       {accountGames && <AccountSettingsSync accountSettings={accountSettings} />}
+      {accountGames && <GuestDataImport onImported={setImportNotice} />}
       {game ? (
         <SudokuBoard
           key={game.id}
@@ -150,6 +153,8 @@ export default function SudokuGame({ user, accountGames, serverGame, accountSett
           saved={saved}
           starting={starting}
           error={startError}
+          notice={importNotice}
+          onDismissNotice={() => setImportNotice(null)}
           onSelect={startGame}
           onContinue={continueGame}
         />

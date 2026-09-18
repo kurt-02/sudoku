@@ -65,6 +65,11 @@ export const games = pgTable(
     mistakes: integer("mistakes").notNull().default(0),
     hintsUsed: integer("hints_used").notNull().default(0),
     status: gameStatus("status").notNull().default("playing"),
+    /**
+     * Brought over from guest play on sign-in. Its earlier time and moves weren't seen by the
+     * server, so it counts toward the player's own stats but never the leaderboard.
+     */
+    imported: boolean("imported").notNull().default(false),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     /** When the clock last started running; null while paused or finished. */
     resumedAt: timestamp("resumed_at", { withTimezone: true }),

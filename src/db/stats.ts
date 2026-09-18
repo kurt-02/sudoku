@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { userStats } from "@/db/schema";
-import type { DifficultyStats } from "@/lib/stats";
+import { emptyStats, type DifficultyStats, type Stats } from "@/lib/stats";
 import type { Difficulty } from "@/lib/sudoku";
 
 /** A transaction, so stats change together with the game that caused them. */
@@ -92,6 +92,14 @@ export async function recordServerResult(
   const isNewBest =
     outcome === "won" && (before?.bestSeconds == null || seconds < before.bestSeconds);
   return { stats: toStats(row), isNewBest };
+}
+
+/** All of the player's stats, with zeroes for difficulties they haven't played. */
+export async function getServerStats(userId: string): Promise<Stats> {
+  const rows = await getDb().select().from(userStats).where(eq(userStats.userId, userId));
+  const stats = emptyStats();
+  for (const row of rows) stats.byDifficulty[row.difficulty] = toStats(row);
+  return stats;
 }
 
 export async function resetServerStats(userId: string) {

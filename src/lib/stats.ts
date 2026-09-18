@@ -109,14 +109,27 @@ function isDifficultyStats(value: unknown): value is DifficultyStats {
   );
 }
 
+/** Validates stats from anywhere (storage, or sent to the server); null if malformed. */
+export function sanitizeStats(data: unknown): Stats | null {
+  const d = data as { version?: unknown; byDifficulty?: Record<string, unknown> } | null;
+  const valid =
+    d?.version === 1 && DIFFICULTIES.every((k) => isDifficultyStats(d.byDifficulty?.[k]));
+  return valid ? (data as Stats) : null;
+}
+
+/** Whether any game was ever started, won, or lost. */
+export function hasStats(stats: Stats): boolean {
+  return DIFFICULTIES.some((d) => {
+    const s = stats.byDifficulty[d];
+    return s.started > 0 || s.won > 0 || s.lost > 0;
+  });
+}
+
 /** Parses stored JSON, falling back to empty stats for anything missing or malformed. */
 export function parseStats(raw: string | null): Stats {
   if (!raw) return emptyStats();
   try {
-    const data = JSON.parse(raw);
-    const valid =
-      data?.version === 1 && DIFFICULTIES.every((d) => isDifficultyStats(data.byDifficulty?.[d]));
-    return valid ? (data as Stats) : emptyStats();
+    return sanitizeStats(JSON.parse(raw)) ?? emptyStats();
   } catch {
     return emptyStats();
   }
