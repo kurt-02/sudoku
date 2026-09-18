@@ -67,6 +67,7 @@ import {
   type Difficulty,
   type Direction,
 } from "@/lib/sudoku";
+import type { ServerGame } from "@/db/games";
 import type { BoardState, Cell } from "@/types/game";
 
 /** Cell indices for each 3x3 box, so the board can be drawn as nine separate tiles. */
@@ -128,8 +129,11 @@ type Props = {
   initialMistakes: number;
   initialHintsUsed: number;
   difficulty: Difficulty;
-  /** Leave the game and go back to the difficulty menu. Progress stays saved. */
-  onExit: () => void;
+  /**
+   * Leave the game and go back to the difficulty menu. Signed in, it receives the game as left
+   * (or null once finished), so the menu's Continue card is current without a server round trip.
+   */
+  onExit: (unfinished: ServerGame | null) => void;
   /** Start a fresh puzzle at this difficulty (from the win screen). */
   onNewGame: (difficulty: Difficulty) => void;
 };
@@ -262,8 +266,15 @@ export default function SudokuBoard({
 
   /** Moves not yet sent to the server. */
   const unsaved = useRef(false);
+  /** What the server last received (starts as what it sent us), to skip identical saves. */
+  const lastSent = useRef({
+    cells: initialBoard.cells,
+    mistakes: initialMistakes,
+    hintsUsed: initialHintsUsed,
+  });
   const saveToServer = useEffectEvent(() => {
     unsaved.current = false;
+    lastSent.current = { cells, mistakes, hintsUsed };
     saveGameAction(gameId, { cells, mistakes, hintsUsed })
       .then((result) => {
         // Finished or replaced in another tab or on another device.
@@ -277,6 +288,8 @@ export default function SudokuBoard({
   // Save shortly after the board or counts change, batching quick bursts of moves.
   useEffect(() => {
     if (!accountGames || finished) return;
+    const sent = lastSent.current;
+    if (sent.cells === cells && sent.mistakes === mistakes && sent.hintsUsed === hintsUsed) return;
     unsaved.current = true;
     const timer = setTimeout(saveToServer, SAVE_DELAY_MS);
     return () => clearTimeout(timer);
@@ -290,10 +303,19 @@ export default function SudokuBoard({
     [],
   );
 
-  // Check in while the clock runs, so the server stops counting soon after a tab is closed.
+  // Check in while the clock runs, so the server stops counting soon after a tab is closed. A
+  // check-in only carries the board if there are unsent moves; otherwise it's a tiny clock ping.
+  const checkIn = useEffectEvent(() => {
+    if (unsaved.current) return saveToServer();
+    pauseGameAction(gameId, false)
+      .then((result) => {
+        if (result === "gone" && !solved && !gameOver) setTakenOver(true);
+      })
+      .catch(() => {});
+  });
   useEffect(() => {
     if (!accountGames || !running) return;
-    const timer = setInterval(saveToServer, CHECK_IN_MS);
+    const timer = setInterval(checkIn, CHECK_IN_MS);
     return () => clearInterval(timer);
   }, [accountGames, running]);
 
@@ -614,6 +636,14 @@ export default function SudokuBoard({
     );
   }
 
+  function leave() {
+    onExit(
+      accountGames && !finished
+        ? { id: gameId, difficulty, cells, seconds, mistakes, hintsUsed }
+        : null,
+    );
+  }
+
   return (
     <div
       data-board={settings.darkBoard ? "dark" : "light"}
@@ -629,7 +659,7 @@ export default function SudokuBoard({
 
       <header className="flex items-center gap-1">
         <button
-          onClick={onExit}
+          onClick={leave}
           aria-label="Back to menu"
           title="Back to menu"
           className={button.icon}
@@ -705,7 +735,7 @@ export default function SudokuBoard({
             animate={settings.animations}
             mistakeLimit={settings.mistakeLimit}
             onNewGame={() => onNewGame(difficulty)}
-            onExit={onExit}
+            onExit={leave}
           />
         )}
         {gameOver && (
@@ -718,7 +748,7 @@ export default function SudokuBoard({
                 <button onClick={retry} className={button.primary}>
                   Try again
                 </button>
-                <button onClick={onExit} className={button.boardSecondary}>
+                <button onClick={leave} className={button.boardSecondary}>
                   Menu
                 </button>
               </>
@@ -739,7 +769,7 @@ export default function SudokuBoard({
             title="Game continued elsewhere"
             solid
             actions={
-              <button onClick={onExit} className={button.primary}>
+              <button onClick={leave} className={button.primary}>
                 Back to menu
               </button>
             }

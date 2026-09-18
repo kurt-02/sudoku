@@ -15,6 +15,28 @@ type Props = {
 let importStarted = false;
 
 /**
+ * A guest game the account turned down (it already had a game in progress). Remembered so the
+ * same game isn't sent again on every visit; it stays playable here as a guest game.
+ */
+const DECLINED_KEY = "sudoku:import-declined-game";
+
+function readDeclined(): string | null {
+  try {
+    return localStorage.getItem(DECLINED_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeDeclined(gameId: string) {
+  try {
+    localStorage.setItem(DECLINED_KEY, gameId);
+  } catch {
+    // Worst case, the offer is made again next visit.
+  }
+}
+
+/**
  * On sign-in, moves guest progress left in this browser (stats and an unfinished game) into the
  * account, then clears the guest copy so nothing is counted twice. Renders nothing.
  */
@@ -24,7 +46,8 @@ export default function GuestDataImport({ onImported }: Props) {
   useEffect(() => {
     if (importStarted) return;
     const stats = readStats();
-    const game = parseSavedGame(readSavedGameRaw());
+    const saved = parseSavedGame(readSavedGameRaw());
+    const game = saved && saved.id !== readDeclined() ? saved : null;
     const guestStats = hasStats(stats);
     if (!guestStats && !game) return;
 
@@ -34,6 +57,7 @@ export default function GuestDataImport({ onImported }: Props) {
         // Only clear what the account actually took.
         if (result.stats) resetStats();
         if (result.game === "imported" && game) finishSavedGame(game.id);
+        if (result.game === "kept-account-game" && game) writeDeclined(game.id);
 
         const movedGame = result.game === "imported";
         if (result.stats || movedGame) {

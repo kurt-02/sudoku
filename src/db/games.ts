@@ -34,9 +34,34 @@ export type Snapshot = {
 /** "gone": the game was finished, replaced, or isn't this player's (another tab or device). */
 export type SyncResult = "ok" | "gone" | "invalid";
 
-type GameRow = typeof games.$inferSelect;
+/*
+ * Each query reads only the columns it uses. In particular, saves and check-ins (which run every
+ * few seconds per player) never read the board JSON or the solution back out of the database.
+ */
+const CLOCK = { seconds: games.seconds, resumedAt: games.resumedAt, lastSeenAt: games.lastSeenAt };
+const CLIENT = {
+  id: games.id,
+  difficulty: games.difficulty,
+  cells: games.cells,
+  mistakes: games.mistakes,
+  hintsUsed: games.hintsUsed,
+  ...CLOCK,
+};
+/** What saving, pausing, and finishing need: everything except the board itself. */
+const PLAY = {
+  puzzle: games.puzzle,
+  solution: games.solution,
+  difficulty: games.difficulty,
+  mistakes: games.mistakes,
+  hintsUsed: games.hintsUsed,
+  ...CLOCK,
+};
 
-function toClient(row: GameRow, now: Date): ServerGame {
+type ClientRow = { [K in keyof typeof CLIENT]: (typeof games.$inferSelect)[K] };
+type PlayRow = { [K in keyof typeof PLAY]: (typeof games.$inferSelect)[K] };
+type ClockRow = Pick<PlayRow, keyof typeof CLOCK>;
+
+function toClient(row: ClientRow, now: Date): ServerGame {
   return {
     id: row.id,
     difficulty: row.difficulty,
@@ -48,7 +73,10 @@ function toClient(row: GameRow, now: Date): ServerGame {
 }
 
 /** Counts from the browser can only move forward, and hints stay within the allowance. */
-function mergeCounts(row: GameRow, snapshot: Snapshot) {
+function mergeCounts(
+  row: Pick<PlayRow, "difficulty" | "mistakes" | "hintsUsed">,
+  snapshot: Snapshot,
+) {
   const count = (n: unknown) => (Number.isInteger(n) && (n as number) > 0 ? (n as number) : 0);
   return {
     mistakes: Math.max(row.mistakes, count(snapshot.mistakes)),
@@ -59,9 +87,10 @@ function mergeCounts(row: GameRow, snapshot: Snapshot) {
   };
 }
 
-async function findPlaying(userId: string, gameId: string): Promise<GameRow | null> {
+/** This player's game, if it's still in progress (without the board JSON). */
+async function findPlaying(userId: string, gameId: string): Promise<PlayRow | null> {
   const [row] = await getDb()
-    .select()
+    .select(PLAY)
     .from(games)
     .where(and(eq(games.id, gameId), eq(games.userId, userId), eq(games.status, "playing")))
     .limit(1);
@@ -73,7 +102,7 @@ async function findPlaying(userId: string, gameId: string): Promise<GameRow | nu
  * check-in means a gap longer than the grace period (tab closed, laptop asleep) is dropped
  * rather than counted once the player comes back.
  */
-function rebankClock(row: GameRow, now: Date) {
+function rebankClock(row: ClockRow, now: Date) {
   return row.resumedAt
     ? { seconds: activeSeconds(row, now), resumedAt: now, lastSeenAt: now }
     : { lastSeenAt: now };
@@ -82,7 +111,7 @@ function rebankClock(row: GameRow, now: Date) {
 /** The player's unfinished game, if any. */
 export async function getPlayingGame(userId: string): Promise<ServerGame | null> {
   const [row] = await getDb()
-    .select()
+    .select(CLIENT)
     .from(games)
     .where(and(eq(games.userId, userId), eq(games.status, "playing")))
     .orderBy(desc(games.startedAt))
@@ -136,7 +165,7 @@ export async function createGame(
         resumedAt: now,
         lastSeenAt: now,
       })
-      .returning();
+      .returning(CLIENT);
     return toClient(row, now);
   });
 }

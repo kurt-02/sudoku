@@ -258,7 +258,7 @@ describe.skipIf(!process.env.RUN_DB_TESTS)(
     });
 
     it("deleting an account removes its games, stats, and settings", async () => {
-      const { deleteUser, userExists } = await import("@/db/users");
+      const { deleteUser, getAccount } = await import("@/db/users");
       const { userSettings } = await import("@/db/schema");
       const doomed = await upsertGoogleUser({
         googleId: `test-delete-${Date.now()}`,
@@ -269,8 +269,13 @@ describe.skipIf(!process.env.RUN_DB_TESTS)(
       await createGame(doomed, { difficulty: "easy" });
       await saveServerSettings(doomed, { darkBoard: true });
 
+      // One query brings back what the page needs: visibility and settings.
+      const account = await getAccount(doomed);
+      expect(account?.showOnLeaderboard).toBe(true);
+      expect(account?.settings?.darkBoard).toBe(true);
+
       await deleteUser(doomed);
-      expect(await userExists(doomed)).toBe(false);
+      expect(await getAccount(doomed)).toBeNull();
       const left = await Promise.all([
         getDb().select().from(games).where(eq(games.userId, doomed)),
         getDb().select().from(userStats).where(eq(userStats.userId, doomed)),

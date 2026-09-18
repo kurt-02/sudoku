@@ -12,7 +12,10 @@ describe.skipIf(!process.env.RUN_DB_TESTS)(
     const { inArray } = await import("drizzle-orm");
     const { getDb } = await import("@/db");
     const { games, users } = await import("@/db/schema");
-    const { getLeaderboard } = await import("@/db/leaderboard");
+    const { getLeaderboardBoard } = await import("@/db/leaderboard");
+    type Category = "fastest" | "wins" | "streak";
+    const board = (viewer: string, category: Category) =>
+      getLeaderboardBoard(viewer, "hard", category);
     const { setLeaderboardVisibility, upsertGoogleUser } = await import("@/db/users");
     const { createBoardState } = await import("@/lib/sudoku");
 
@@ -84,28 +87,24 @@ describe.skipIf(!process.env.RUN_DB_TESTS)(
     });
 
     it("only counts checked wins under the rules", async () => {
-      const boards = await getLeaderboard(me, "hard");
-      const mine = (category: keyof typeof boards) => boards[category].find((e) => e.isMe);
-      expect(mine("fastest")?.value).toBe(70);
-      expect(mine("wins")?.value).toBe(3); // 90, 70, 100
+      const mine = async (category: Category) => (await board(me, category)).find((e) => e.isMe);
+      expect((await mine("fastest"))?.value).toBe(70);
+      expect((await mine("wins"))?.value).toBe(3); // 90, 70, 100
       // Runs: 90, 70 | broken by the too-fast win, the loss, and the over-limit win | 100.
       // Imported games are skipped entirely. Longest run: 2.
-      expect(mine("streak")?.value).toBe(2);
-      expect(mine("fastest")?.name).toBe("Leader T.");
+      expect((await mine("streak"))?.value).toBe(2);
+      expect((await mine("fastest"))?.name).toBe("Leader T.");
     });
 
     it("leaves hidden players off every board", async () => {
-      const boards = await getLeaderboard(me, "hard");
-      for (const board of Object.values(boards)) {
-        expect(board.some((e) => e.name === "Hidden T.")).toBe(false);
+      for (const category of ["fastest", "wins", "streak"] as const) {
+        expect((await board(me, category)).some((e) => e.name === "Hidden T.")).toBe(false);
       }
-      const theirs = await getLeaderboard(hidden, "hard");
-      expect(theirs.fastest.some((e) => e.isMe)).toBe(false);
+      expect((await board(hidden, "fastest")).some((e) => e.isMe)).toBe(false);
     });
 
     it("orders boards best first and never exposes emails", async () => {
-      const boards = await getLeaderboard(me, "hard");
-      const top = boards.fastest.filter((e) => e.rank <= 10);
+      const top = (await board(me, "fastest")).filter((e) => e.rank <= 10);
       const times = top.map((e) => e.value);
       expect(times).toEqual([...times].sort((a, b) => a - b));
       for (const entry of top)

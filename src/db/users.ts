@@ -1,7 +1,8 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { users } from "@/db/schema";
+import { userSettings, users } from "@/db/schema";
+import { sanitizeSettings, type Settings } from "@/lib/settings";
 
 type GoogleProfile = {
   googleId: string;
@@ -23,28 +24,33 @@ export async function upsertGoogleUser(profile: GoogleProfile): Promise<string> 
   return row.id;
 }
 
-/** Whether the player's account still exists (it may have been deleted on another device). */
-export async function userExists(userId: string): Promise<boolean> {
+export type Account = {
+  showOnLeaderboard: boolean;
+  /** Null if the player has never saved settings. */
+  settings: Settings | null;
+};
+
+/**
+ * What the page needs about the signed-in player, in one query. Null if the account no longer
+ * exists (it may have been deleted on another device).
+ */
+export async function getAccount(userId: string): Promise<Account | null> {
   const [row] = await getDb()
-    .select({ id: users.id })
+    .select({ showOnLeaderboard: users.showOnLeaderboard, settings: userSettings.settings })
     .from(users)
+    .leftJoin(userSettings, eq(userSettings.userId, users.id))
     .where(eq(users.id, userId))
     .limit(1);
-  return Boolean(row);
+  if (!row) return null;
+  return {
+    showOnLeaderboard: row.showOnLeaderboard,
+    settings: row.settings ? sanitizeSettings(row.settings) : null,
+  };
 }
 
 /** Permanently deletes the player; their games, stats, and settings go with them (cascade). */
 export async function deleteUser(userId: string): Promise<void> {
   await getDb().delete(users).where(eq(users.id, userId));
-}
-
-export async function getLeaderboardVisibility(userId: string): Promise<boolean> {
-  const [row] = await getDb()
-    .select({ show: users.showOnLeaderboard })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  return row?.show ?? true;
 }
 
 export async function setLeaderboardVisibility(userId: string, show: boolean): Promise<void> {

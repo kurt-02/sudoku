@@ -1,8 +1,7 @@
 import { auth } from "@/auth";
 import SudokuGame from "@/components/SudokuGame";
 import { getPlayingGame, type ServerGame } from "@/db/games";
-import { getServerSettings } from "@/db/settings";
-import { userExists } from "@/db/users";
+import { getAccount } from "@/db/users";
 import type { Settings } from "@/lib/settings";
 import type { SessionUser } from "@/types/auth";
 
@@ -24,18 +23,23 @@ export default async function Home() {
   let accountGames = false;
   let serverGame: ServerGame | null = null;
   let accountSettings: Settings | null = null;
+  let showOnLeaderboard = true;
   if (session?.user?.id) {
     try {
-      let exists: boolean;
-      [exists, serverGame, accountSettings] = await Promise.all([
-        userExists(session.user.id),
+      const [account, game] = await Promise.all([
+        getAccount(session.user.id),
         getPlayingGame(session.user.id),
-        getServerSettings(session.user.id),
       ]);
-      // The account was deleted (e.g. from another device) but this browser's sign-in cookie
-      // remains: show the page as signed out, so signing in again starts a fresh account.
-      if (exists) accountGames = true;
-      else user = null;
+      if (account) {
+        accountGames = true;
+        serverGame = game;
+        accountSettings = account.settings;
+        showOnLeaderboard = account.showOnLeaderboard;
+      } else {
+        // The account was deleted (e.g. from another device) but this browser's sign-in cookie
+        // remains: show the page as signed out, so signing in again starts a fresh account.
+        user = null;
+      }
     } catch (error) {
       console.error("[home] could not load the saved game", error);
     }
@@ -48,6 +52,7 @@ export default async function Home() {
         accountGames={accountGames}
         serverGame={serverGame}
         accountSettings={accountSettings}
+        showOnLeaderboard={showOnLeaderboard}
       />
     </main>
   );

@@ -74,7 +74,14 @@ export default function AccountPanel({ user }: Props) {
     <div className="flex items-center justify-between gap-3 rounded-2xl bg-surface py-3 pr-2 pl-4">
       <div className="flex min-w-0 items-center gap-3">
         {user.image ? (
-          <Image src={user.image} alt="" width={36} height={36} className="size-9 rounded-full" />
+          <Image
+            src={user.image}
+            alt=""
+            width={36}
+            height={36}
+            unoptimized
+            className="size-9 rounded-full"
+          />
         ) : (
           <span className="flex size-9 items-center justify-center rounded-full bg-accent font-semibold text-white">
             {label.charAt(0).toUpperCase()}

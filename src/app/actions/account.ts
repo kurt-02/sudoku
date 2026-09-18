@@ -4,9 +4,10 @@
 import { auth, signOut } from "@/auth";
 import { importGuestData, type ImportResult } from "@/db/import";
 import { saveServerSettings } from "@/db/settings";
-import { getServerStats, resetServerStats } from "@/db/stats";
+import { getServerDifficultyStats, resetServerStats } from "@/db/stats";
 import { deleteUser } from "@/db/users";
-import type { Stats } from "@/lib/stats";
+import type { DifficultyStats } from "@/lib/stats";
+import { CLUE_TARGETS, type Difficulty } from "@/lib/sudoku";
 
 async function requireUserId(): Promise<string> {
   const session = await auth();
@@ -20,8 +21,13 @@ export async function saveSettingsAction(settings: unknown): Promise<void> {
   await saveServerSettings(await requireUserId(), settings);
 }
 
-export async function getMyStatsAction(): Promise<Stats> {
-  return getServerStats(await requireUserId());
+/** The player's own stats for one difficulty, fetched when they open that tab. */
+export async function getMyStatsAction(difficulty: unknown): Promise<DifficultyStats> {
+  const userId = await requireUserId();
+  if (typeof difficulty !== "string" || !(difficulty in CLUE_TARGETS)) {
+    throw new Error("Unknown difficulty.");
+  }
+  return getServerDifficultyStats(userId, difficulty as Difficulty);
 }
 
 export async function resetStatsAction(): Promise<void> {

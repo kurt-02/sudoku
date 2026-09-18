@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { getMyStatsAction } from "@/app/actions/account";
 import { useAccountGames } from "@/components/AccountContext";
 import Dialog from "@/components/ui/Dialog";
 import Segmented from "@/components/ui/Segmented";
 import { formatTime } from "@/lib/format";
-import { averageWinSeconds, readStats, winRate, type Stats } from "@/lib/stats";
+import { averageWinSeconds, readStats, winRate, type DifficultyStats } from "@/lib/stats";
 import type { Difficulty } from "@/lib/sudoku";
 
 type Props = {
@@ -18,13 +18,6 @@ const DIFFICULTY_TABS = DIFFICULTIES.map((d) => ({
   value: d,
   label: d.charAt(0).toUpperCase() + d.slice(1),
 }));
-
-/** Opens on the difficulty played most, so the first thing shown is the most relevant. */
-function mostPlayed(stats: Stats): Difficulty {
-  return DIFFICULTIES.reduce((best, d) =>
-    stats.byDifficulty[d].started > stats.byDifficulty[best].started ? d : best,
-  );
-}
 
 function Headline({ label, value }: { label: string; value: string }) {
   return (
@@ -47,26 +40,36 @@ function Row({ label, value }: { label: string; value: string }) {
 /** Your own stats, per difficulty: from the account when signed in, this device otherwise. */
 export default function StatsDialog({ onClose }: Props) {
   const accountGames = useAccountGames();
-  // Guests' stats are right here; account stats are loaded fresh each time the panel opens.
-  const [stats, setStats] = useState<Stats | null>(() => (accountGames ? null : readStats()));
-  const [loadFailed, setLoadFailed] = useState(false);
-  const [picked, setPicked] = useState<Difficulty | null>(null);
+  const [difficulty, setDifficulty] = useState<Difficulty>("easy");
+  // Account stats load one difficulty at a time, when its tab is opened (Easy on open), and are
+  // kept while the panel is open. Guests' stats are already on this device.
+  const [loaded, setLoaded] = useState<Partial<Record<Difficulty, DifficultyStats>>>(() =>
+    accountGames ? {} : readStats().byDifficulty,
+  );
+  const [failed, setFailed] = useState<Difficulty | null>(null);
+  /** Requests on their way, so a tab is never fetched twice at once. */
+  const loading = useRef(new Set<Difficulty>());
+
+  const loadIfMissing = useEffectEvent((d: Difficulty) => {
+    if (loaded[d] || failed === d || loading.current.has(d)) return;
+    loading.current.add(d);
+    getMyStatsAction(d)
+      .then((stats) => {
+        setLoaded((prev) => ({ ...prev, [d]: stats }));
+        setFailed((f) => (f === d ? null : f));
+      })
+      .catch(() => setFailed(d))
+      .finally(() => loading.current.delete(d));
+  });
 
   useEffect(() => {
-    if (!accountGames) return;
-    let current = true;
-    getMyStatsAction()
-      .then((loaded) => current && setStats(loaded))
-      .catch(() => current && setLoadFailed(true));
-    return () => {
-      current = false;
-    };
-  }, [accountGames]);
+    if (accountGames) loadIfMissing(difficulty);
+  }, [accountGames, difficulty]);
 
-  const difficulty = picked ?? (stats ? mostPlayed(stats) : "easy");
-  const s = stats?.byDifficulty[difficulty];
+  const s = loaded[difficulty];
   const rate = s && winRate(s);
   const average = s && averageWinSeconds(s);
+  const loadFailed = failed === difficulty;
 
   return (
     <Dialog title="Stats" onClose={onClose}>
@@ -75,7 +78,7 @@ export default function StatsDialog({ onClose }: Props) {
           label="Difficulty"
           options={DIFFICULTY_TABS}
           value={difficulty}
-          onChange={setPicked}
+          onChange={setDifficulty}
         />
 
         {/* Fixed height, so switching tabs (or loading) doesn't make the sheet jump. */}

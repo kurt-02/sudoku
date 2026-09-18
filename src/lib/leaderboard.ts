@@ -27,8 +27,6 @@ export type LeaderboardEntry = {
   isMe: boolean;
 };
 
-export type Leaderboard = Record<LeaderboardCategory, LeaderboardEntry[]>;
-
 /**
  * Public name: first name and last initial ("Kurt Valderama" → "Kurt V."), so full names and
  * emails are never shown to other players.

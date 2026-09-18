@@ -1,9 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { startGameAction } from "@/app/actions/game";
-import { AccountContext } from "@/components/AccountContext";
+import { AccountContext, type AccountState } from "@/components/AccountContext";
 import AccountSettingsSync from "@/components/AccountSettingsSync";
 import DifficultyMenu from "@/components/DifficultyMenu";
 import GuestDataImport from "@/components/GuestDataImport";
@@ -43,6 +42,8 @@ type Props = {
   serverGame: ServerGame | null;
   /** Settings stored on the account (null if never saved). */
   accountSettings: Settings | null;
+  /** Whether the player appears on the leaderboard. */
+  showOnLeaderboard: boolean;
 };
 
 /** The menu's Continue card shows the same fields for server and local games. */
@@ -51,17 +52,31 @@ function asSaved(game: ServerGame): SavedGame {
 }
 
 /** Top-level flow: pick a difficulty (or continue a saved game), then play. */
-export default function SudokuGame({ user, accountGames, serverGame, accountSettings }: Props) {
-  const router = useRouter();
+export default function SudokuGame({
+  user,
+  accountGames,
+  serverGame,
+  accountSettings,
+  showOnLeaderboard: initialShowOnLeaderboard,
+}: Props) {
   const [game, setGame] = useState<Game | null>(null);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [importNotice, setImportNotice] = useState<string | null>(null);
+  const [showOnLeaderboard, setShowOnLeaderboard] = useState(initialShowOnLeaderboard);
+  const account = useMemo<AccountState>(
+    () => ({ accountGames, showOnLeaderboard, setShowOnLeaderboard }),
+    [accountGames, showOnLeaderboard],
+  );
+  // The board hands back its latest state when you leave it, so the Continue card is current
+  // without asking the server again. `undefined`: nothing played yet, use the page's copy.
+  const [lastPlayed, setLastPlayed] = useState<ServerGame | null | undefined>(undefined);
 
   // localStorage only exists in the browser; the server snapshot (null) keeps hydration consistent.
   const savedRaw = useSyncExternalStore(subscribeSavedGame, readSavedGameRaw, () => null);
   const localSaved = useMemo(() => parseSavedGame(savedRaw), [savedRaw]);
-  const saved = accountGames ? (serverGame ? asSaved(serverGame) : null) : localSaved;
+  const accountSaved = lastPlayed === undefined ? serverGame : lastPlayed;
+  const saved = accountGames ? (accountSaved ? asSaved(accountSaved) : null) : localSaved;
 
   function open(next: Omit<Game, "id">) {
     setGame((prev) => ({ id: (prev?.id ?? 0) + 1, ...next }));
@@ -124,14 +139,14 @@ export default function SudokuGame({ user, accountGames, serverGame, accountSett
     });
   }
 
-  function exitGame() {
+  /** `unfinished`: the game as the player left it, or null once it's won, lost, or replaced. */
+  function exitGame(unfinished: ServerGame | null) {
     setGame(null);
-    // Reload the server's view of this player's game for the Continue card.
-    if (accountGames) router.refresh();
+    if (accountGames) setLastPlayed(unfinished);
   }
 
   return (
-    <AccountContext value={accountGames}>
+    <AccountContext value={account}>
       {accountGames && <AccountSettingsSync accountSettings={accountSettings} />}
       {accountGames && <GuestDataImport onImported={setImportNotice} />}
       {game ? (

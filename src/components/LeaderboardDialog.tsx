@@ -1,13 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useEffectEvent, useState } from "react";
-import {
-  getLeaderboardAction,
-  setLeaderboardVisibilityAction,
-  type LeaderboardView,
-} from "@/app/actions/leaderboard";
-import { useAccountGames } from "@/components/AccountContext";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { getLeaderboardAction, setLeaderboardVisibilityAction } from "@/app/actions/leaderboard";
+import { useAccount } from "@/components/AccountContext";
 import Dialog from "@/components/ui/Dialog";
 import Segmented from "@/components/ui/Segmented";
 import { formatTime } from "@/lib/format";
@@ -48,7 +44,15 @@ function formatValue(category: LeaderboardCategory, value: number): string {
 function Avatar({ entry }: { entry: LeaderboardEntry }) {
   if (entry.image) {
     return (
-      <Image src={entry.image} alt="" width={28} height={28} className="size-7 rounded-full" />
+      // Google already serves small avatars; skip the image optimizer (and its usage quota).
+      <Image
+        src={entry.image}
+        alt=""
+        width={28}
+        height={28}
+        unoptimized
+        className="size-7 rounded-full"
+      />
     );
   }
   return (
@@ -84,46 +88,53 @@ function EntryRow({ entry, category }: { entry: LeaderboardEntry; category: Lead
 
 /** Rankings of signed-in players, built only from games the server checked. */
 export default function LeaderboardDialog({ onClose }: Props) {
-  const accountGames = useAccountGames();
+  const { accountGames, showOnLeaderboard: showMe, setShowOnLeaderboard } = useAccount();
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
   const [category, setCategory] = useState<LeaderboardCategory>("fastest");
-  const [views, setViews] = useState<Partial<Record<Difficulty, LeaderboardView>>>({});
-  /** The difficulty whose boards failed to load, if any. */
-  const [failedFor, setFailedFor] = useState<Difficulty | null>(null);
-  const [showMe, setShowMe] = useState<boolean | null>(null);
+  // Boards load one at a time, only when selected (Easy / Fastest on open), and are kept for
+  // this visit so switching back doesn't refetch. Keyed "difficulty:category".
+  const [boards, setBoards] = useState<Record<string, LeaderboardEntry[]>>({});
+  const [failed, setFailed] = useState<string | null>(null);
+  /** Requests on their way, so a board is never fetched twice at once. */
+  const loading = useRef(new Set<string>());
   const [savingShowMe, setSavingShowMe] = useState(false);
+  const key = `${difficulty}:${category}`;
 
-  /** Fetches a difficulty's boards. State only changes once the server answers. */
-  function fetchBoards(d: Difficulty) {
-    getLeaderboardAction(d)
-      .then((view) => {
-        setViews((prev) => ({ ...prev, [d]: view }));
-        setShowMe(view.showMe);
-        setFailedFor((f) => (f === d ? null : f));
+  /** Fetches one board. State only changes once the server answers. */
+  function fetchBoard(d: Difficulty, c: LeaderboardCategory) {
+    const k = `${d}:${c}`;
+    if (loading.current.has(k)) return;
+    loading.current.add(k);
+    getLeaderboardAction(d, c)
+      .then((entries) => {
+        setBoards((prev) => ({ ...prev, [k]: entries }));
+        setFailed((f) => (f === k ? null : f));
       })
-      .catch(() => setFailedFor(d));
+      .catch(() => setFailed(k))
+      .finally(() => loading.current.delete(k));
   }
 
-  const loadIfMissing = useEffectEvent((d: Difficulty) => {
-    if (!views[d] && failedFor !== d) fetchBoards(d);
+  const loadIfMissing = useEffectEvent((d: Difficulty, c: LeaderboardCategory) => {
+    const k = `${d}:${c}`;
+    if (!boards[k] && failed !== k) fetchBoard(d, c);
   });
 
   useEffect(() => {
-    if (accountGames) loadIfMissing(difficulty);
-  }, [accountGames, difficulty]);
+    if (accountGames) loadIfMissing(difficulty, category);
+  }, [accountGames, difficulty, category]);
 
   async function toggleShowMe() {
-    if (showMe === null) return;
     const next = !showMe;
-    setShowMe(next);
+    setShowOnLeaderboard(next);
     setSavingShowMe(true);
     try {
       await setLeaderboardVisibilityAction(next);
-      // Your own rows appear or disappear, so the cached boards are out of date.
-      setViews({});
-      fetchBoards(difficulty);
+      // Your own rows appear or disappear, so the boards already loaded are out of date. Only
+      // the one on screen is fetched again; the rest reload if and when they're opened.
+      setBoards({});
+      fetchBoard(difficulty, category);
     } catch {
-      setShowMe(!next);
+      setShowOnLeaderboard(!next);
     } finally {
       setSavingShowMe(false);
     }
@@ -140,7 +151,7 @@ export default function LeaderboardDialog({ onClose }: Props) {
     );
   }
 
-  const entries = views[difficulty]?.boards[category];
+  const entries = boards[key];
   const top = entries?.filter((e) => e.rank <= LEADERBOARD_SIZE) ?? [];
   const meBelow = entries?.find((e) => e.isMe && e.rank > LEADERBOARD_SIZE);
 
@@ -163,7 +174,7 @@ export default function LeaderboardDialog({ onClose }: Props) {
 
         {/* Fixed height, so switching boards doesn't make the sheet jump. */}
         <div className="flex min-h-[22rem] flex-col">
-          {failedFor === difficulty ? (
+          {failed === key ? (
             <p role="alert" className="m-auto px-2 text-center text-sm text-muted">
               Couldn&apos;t load the leaderboard. Check your connection and try again.
             </p>
@@ -204,8 +215,8 @@ export default function LeaderboardDialog({ onClose }: Props) {
         <div className="border-t border-line/60 pt-2">
           <button
             role="switch"
-            aria-checked={showMe ?? true}
-            disabled={showMe === null || savingShowMe}
+            aria-checked={showMe}
+            disabled={savingShowMe}
             onClick={toggleShowMe}
             className="flex w-full items-center justify-between gap-4 rounded-xl px-2 py-2 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent disabled:opacity-60"
           >

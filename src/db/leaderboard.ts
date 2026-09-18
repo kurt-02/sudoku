@@ -6,7 +6,7 @@ import {
   LEADERBOARD_SIZE,
   leaderboardName,
   MIN_LEADERBOARD_SECONDS,
-  type Leaderboard,
+  type LeaderboardCategory,
   type LeaderboardEntry,
 } from "@/lib/leaderboard";
 import type { Difficulty } from "@/lib/sudoku";
@@ -69,54 +69,61 @@ async function ranked(
   return me && !top.includes(me) ? [...top, me] : top;
 }
 
-export async function getLeaderboard(
+/** The per-player value each board ranks, as SQL, plus which way is better. */
+function boardQuery(category: LeaderboardCategory, difficulty: Difficulty): [SQL, "asc" | "desc"] {
+  const visible = sql`users.show_on_leaderboard`;
+  switch (category) {
+    case "fastest":
+      return [
+        sql`select g.user_id, min(g.seconds) as value
+            from games g join users on users.id = g.user_id
+            where g.difficulty = ${difficulty} and ${visible} and ${countsWhere(difficulty)}
+            group by g.user_id`,
+        "asc",
+      ];
+    case "wins":
+      return [
+        sql`select g.user_id, count(*) as value
+            from games g join users on users.id = g.user_id
+            where g.difficulty = ${difficulty} and ${visible} and ${countsWhere(difficulty)}
+            group by g.user_id`,
+        "desc",
+      ];
+    case "streak":
+      // Longest run of counting wins, in finish order. Any other finished game (a loss, a game
+      // given up, or a win that doesn't count) ends the run. Classic "gaps and islands": within a
+      // run, the position among all games minus the position among same-kind games is constant.
+      return [
+        sql`select user_id, max(run) as value from (
+              select user_id, count(*) as run from (
+                select g.user_id, (${countsWhere(difficulty)}) as counts,
+                  row_number() over (partition by g.user_id order by g.finished_at)
+                    - row_number() over (
+                        partition by g.user_id, (${countsWhere(difficulty)})
+                        order by g.finished_at
+                      ) as island
+                from games g join users on users.id = g.user_id
+                where g.difficulty = ${difficulty} and ${visible}
+                  and not g.imported and g.status <> 'playing'
+              ) finished
+              where counts
+              group by user_id, island
+            ) runs
+            group by user_id`,
+        "desc",
+      ];
+  }
+}
+
+/**
+ * One board: the top rows plus the viewer's own. Boards are requested one at a time, as the
+ * player opens them, so the heavier streak query only runs when someone looks at streaks.
+ */
+export async function getLeaderboardBoard(
   viewerId: string,
   difficulty: Difficulty,
-): Promise<Leaderboard> {
-  const visible = sql`users.show_on_leaderboard`;
-
-  const fastest = ranked(
-    viewerId,
-    sql`select g.user_id, min(g.seconds) as value
-        from games g join users on users.id = g.user_id
-        where g.difficulty = ${difficulty} and ${visible} and ${countsWhere(difficulty)}
-        group by g.user_id`,
-    "asc",
-  );
-
-  const wins = ranked(
-    viewerId,
-    sql`select g.user_id, count(*) as value
-        from games g join users on users.id = g.user_id
-        where g.difficulty = ${difficulty} and ${visible} and ${countsWhere(difficulty)}
-        group by g.user_id`,
-    "desc",
-  );
-
-  // Longest run of counting wins, in finish order. Any other finished game (a loss, a game given
-  // up, or a win that doesn't count) ends the run. Classic "gaps and islands": within a run, the
-  // position among all games minus the position among same-kind games stays constant.
-  const streak = ranked(
-    viewerId,
-    sql`select user_id, max(run) as value from (
-          select user_id, count(*) as run from (
-            select g.user_id, (${countsWhere(difficulty)}) as counts,
-              row_number() over (partition by g.user_id order by g.finished_at)
-                - row_number() over (
-                    partition by g.user_id, (${countsWhere(difficulty)})
-                    order by g.finished_at
-                  ) as island
-            from games g join users on users.id = g.user_id
-            where g.difficulty = ${difficulty} and ${visible}
-              and not g.imported and g.status <> 'playing'
-          ) finished
-          where counts
-          group by user_id, island
-        ) runs
-        group by user_id`,
-    "desc",
-  );
-
-  const [f, w, s] = await Promise.all([fastest, wins, streak]);
-  return { fastest: f, wins: w, streak: s };
+  category: LeaderboardCategory,
+): Promise<LeaderboardEntry[]> {
+  const [perPlayer, order] = boardQuery(category, difficulty);
+  return ranked(viewerId, perPlayer, order);
 }
