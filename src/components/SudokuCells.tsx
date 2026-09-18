@@ -11,6 +11,8 @@ type Props = {
   isPeer: boolean;
   /** Holds the same digit as the selected cell. */
   isSameValue: boolean;
+  /** The selected cell's number; a matching pencil note here is highlighted. */
+  highlightNote: number | null;
   isConflict: boolean;
   /** Changes on every rejected note that involves this cell, restarting the shake; null when idle. */
   shakeKey: number | null;
@@ -37,6 +39,7 @@ export default function SudokuCell({
   isSelected,
   isPeer,
   isSameValue,
+  highlightNote,
   isConflict,
   shakeKey,
   isBlocking,
@@ -105,7 +108,16 @@ export default function SudokuCell({
           (cell.notes.length > 0 && (
             <div className="grid size-full grid-cols-3 grid-rows-3 p-[8%] text-[clamp(0.5rem,2.2vw,0.7rem)] leading-none font-medium text-(--note)">
               {NOTE_DIGITS.map((d) => (
-                <span key={d} className="flex items-center justify-center">
+                <span
+                  key={d}
+                  // A highlighted note tints its whole slot in the 3x3 notes grid, so it scales
+                  // with the board instead of a fixed-size badge that gets squeezed.
+                  className={`flex items-center justify-center ${
+                    cell.notes.includes(d) && d === highlightNote
+                      ? "rounded-[4px] bg-(--digit-entry)/20 font-bold text-(--digit-entry)"
+                      : ""
+                  }`}
+                >
                   {cell.notes.includes(d) ? d : ""}
                 </span>
               ))}

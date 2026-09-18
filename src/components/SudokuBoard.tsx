@@ -616,6 +616,7 @@ export default function SudokuBoard({
         isSameValue={
           settings.highlightPeers && selectedValue !== null && cell.value === selectedValue
         }
+        highlightNote={settings.highlightPeers ? selectedValue : null}
         isConflict={
           conflicts.has(i) ||
           (settings.highlightWrong &&
