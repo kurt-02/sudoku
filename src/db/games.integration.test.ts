@@ -1,5 +1,5 @@
 // Runs against the real database in DATABASE_URL. Opt in with: RUN_DB_TESTS=1 npm test
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 // Next.js skips .env.local when NODE_ENV is "test", so load it directly.
@@ -65,6 +65,16 @@ describe.skipIf(!process.env.RUN_DB_TESTS)(
         email: null,
         image: null,
       });
+    });
+
+    // The test player starts far more games per minute than the anti-spam limit allows; age their
+    // games before each test so every test starts under the limit.
+    beforeEach(async () => {
+      if (!userId) return;
+      await getDb()
+        .update(games)
+        .set({ startedAt: new Date(Date.now() - 5 * 60_000) })
+        .where(eq(games.userId, userId));
     });
 
     afterAll(async () => {
@@ -255,6 +265,28 @@ describe.skipIf(!process.env.RUN_DB_TESTS)(
       const cells = createBoardState("5" + "0".repeat(39) + "3" + "0".repeat(39) + "9").cells;
       expect((await importGuestData(userId, { game: guestSave({ cells }) })).game).toBe("none");
       expect(await getPlayingGame(userId)).toBeNull();
+    });
+
+    it("stops one player from starting games faster than the limit", async () => {
+      const { MAX_STARTS_PER_MINUTE, TooManyGamesError } = await import("@/db/games");
+      const spammer = await upsertGoogleUser({
+        googleId: `test-spam-${Date.now()}`,
+        name: null,
+        email: null,
+        image: null,
+      });
+      try {
+        for (let i = 0; i < MAX_STARTS_PER_MINUTE; i++) {
+          await createGame(spammer, { difficulty: "easy" });
+        }
+        await expect(createGame(spammer, { difficulty: "easy" })).rejects.toBeInstanceOf(
+          TooManyGamesError,
+        );
+        // Other players are unaffected.
+        expect(await createGame(userId, { difficulty: "easy" })).not.toBeNull();
+      } finally {
+        await getDb().delete(users).where(eq(users.id, spammer));
+      }
     });
 
     it("deleting an account removes its games, stats, and settings", async () => {

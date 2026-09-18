@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, gt } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games } from "@/db/schema";
 import { recordServerAbandon, recordServerResult, recordServerStart } from "@/db/stats";
@@ -123,11 +123,29 @@ export async function getPlayingGame(userId: string): Promise<ServerGame | null>
  * Starts a game: a new puzzle, or (with `retryOf`) the same puzzle as one of the player's own
  * games. Any other unfinished game is abandoned, so a player has one game in progress.
  */
+/**
+ * Games one player may start per minute. Far above real play (a game takes minutes), but it stops
+ * a script from filling the database with rows.
+ */
+export const MAX_STARTS_PER_MINUTE = 10;
+
+export class TooManyGamesError extends Error {
+  constructor() {
+    super("Too many games started. Wait a minute and try again.");
+  }
+}
+
 export async function createGame(
   userId: string,
   options: { difficulty: Difficulty } | { retryOf: string },
 ): Promise<ServerGame | null> {
   return getDb().transaction(async (tx) => {
+    const [{ recent }] = await tx
+      .select({ recent: count() })
+      .from(games)
+      .where(and(eq(games.userId, userId), gt(games.startedAt, new Date(Date.now() - 60_000))));
+    if (recent >= MAX_STARTS_PER_MINUTE) throw new TooManyGamesError();
+
     let difficulty: Difficulty;
     let puzzle: string;
     let solution: string;
