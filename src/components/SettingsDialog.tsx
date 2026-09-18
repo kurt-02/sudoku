@@ -20,7 +20,8 @@ const OPTIONS: { key: keyof Settings; label: string; description: string }[] = [
   {
     key: "highlightWrong",
     label: "Highlight wrong numbers",
-    description: "Show incorrect numbers in red right away",
+    description:
+      "Check against the answer: wrong numbers turn red and count as mistakes. Off: only clashes count",
   },
   {
     key: "blockImpossibleNotes",

@@ -1,12 +1,18 @@
 "use client";
 
-import { useEffect, useEffectEvent, useMemo, useReducer, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useReducer, useRef, useState } from "react";
 import SudokuCell from "@/components/SudokuCells";
 import SettingsDialog from "@/components/SettingsDialog";
 import WinScreen from "@/components/WinScreen";
 import { formatTime } from "@/lib/format";
 import { useSettings } from "@/lib/useSettings";
-import { clearSavedGame, writeSavedGame } from "@/lib/savedGame";
+import {
+  finishSavedGame,
+  newGameId,
+  ownsSavedGame,
+  subscribeSavedGame,
+  writeSavedGame,
+} from "@/lib/savedGame";
 import { recordLoss, recordStart, recordWin, updateStats, type DifficultyStats } from "@/lib/stats";
 import {
   blockingPeers,
@@ -46,6 +52,8 @@ const ARROWS: Record<string, Direction> = {
 };
 
 type Props = {
+  /** Identifies this play-through in storage (see savedGame.ts). */
+  gameId: string;
   /** A fresh puzzle, or a restored saved game. */
   initialBoard: BoardState;
   initialSeconds: number;
@@ -59,6 +67,7 @@ type Props = {
 };
 
 export default function SudokuBoard({
+  gameId: initialGameId,
   initialBoard,
   initialSeconds,
   initialMistakes,
@@ -107,7 +116,9 @@ export default function SudokuBoard({
   const [elapsedMs, setElapsedMs] = useState(initialSeconds * 1000);
   const seconds = Math.floor(elapsedMs / 1000);
   const [paused, setPaused] = useState(false);
-  const finished = solved || gameOver;
+  // Set when another tab ends this game or starts a new one; this tab then stops playing it.
+  const [takenOver, setTakenOver] = useState(false);
+  const finished = solved || gameOver || takenOver;
   const running = !paused && !finished;
   useEffect(() => {
     if (!running) return;
@@ -125,11 +136,35 @@ export default function SudokuBoard({
     };
   }, [running]);
 
-  // Save after every move and timer tick; a solved or lost game has nothing left to resume.
+  // Save after every move and timer tick. The first write claims the save for this game; after
+  // that, only keep writing while storage still holds it, so a tab left open on an old game can't
+  // overwrite (or bring back) a game that another tab ended or replaced.
+  const [gameId, setGameId] = useState(initialGameId);
+  const claimedSave = useRef(false);
   useEffect(() => {
-    if (finished) clearSavedGame();
-    else writeSavedGame({ difficulty, cells, noteMode, seconds, mistakes, hintsUsed });
-  }, [finished, difficulty, cells, noteMode, seconds, mistakes, hintsUsed]);
+    if (takenOver) return;
+    if (claimedSave.current && !ownsSavedGame(gameId)) return;
+    claimedSave.current = true;
+    if (solved || gameOver) finishSavedGame(gameId);
+    else writeSavedGame({ id: gameId, difficulty, cells, noteMode, seconds, mistakes, hintsUsed });
+  }, [
+    takenOver,
+    gameId,
+    solved,
+    gameOver,
+    difficulty,
+    cells,
+    noteMode,
+    seconds,
+    mistakes,
+    hintsUsed,
+  ]);
+
+  // Another tab changed the save: if it's no longer this game, stop here.
+  const onSaveChangedElsewhere = useEffectEvent(() => {
+    if (claimedSave.current && !solved && !gameOver && !ownsSavedGame(gameId)) setTakenOver(true);
+  });
+  useEffect(() => subscribeSavedGame(onSaveChangedElsewhere), []);
 
   // Filled in by the move that solves the puzzle; drives the win screen.
   const [winResult, setWinResult] = useState<{
@@ -151,6 +186,9 @@ export default function SudokuBoard({
 
   function retry() {
     updateStats((s) => recordStart(s, difficulty));
+    // A retry is a new play-through; it claims the save afresh.
+    setGameId(newGameId());
+    claimedSave.current = false;
     dispatch({ type: "load", puzzle: gridToString(givens) });
     setElapsedMs(0);
     setMistakes(0);
@@ -209,8 +247,11 @@ export default function SudokuBoard({
   /** Animates whatever the move at `origin` newly completed. */
   function celebrateCompletions(nextGrid: number[], origin: number) {
     if (!settings.animations) return;
-    const before = new Set(completedUnits(grid, solution).map((u) => u.key));
-    const newUnits = completedUnits(nextGrid, solution).filter((u) => !before.has(u.key));
+    // Only compare with the answer when wrong numbers are shown anyway; otherwise a ripple would
+    // quietly confirm that a row is correct.
+    const answer = settings.highlightWrong ? solution : null;
+    const before = new Set(completedUnits(grid, answer).map((u) => u.key));
+    const newUnits = completedUnits(nextGrid, answer).filter((u) => !before.has(u.key));
     const newDigits = [...completedDigits(nextGrid)].filter((d) => !completed.has(d));
 
     const pulsing = new Set(newUnits.flatMap((u) => u.cells));
@@ -245,8 +286,13 @@ export default function SudokuBoard({
           rejectFeedback(i, blockers);
           return;
         }
-      } else if (cell.value !== digit && solution && digit !== solution[i]) {
-        // Wrong numbers still go in (and show red), but shake and cost a mistake.
+      } else if (
+        cell.value !== digit &&
+        // With "Highlight wrong numbers" on, check against the answer. With it off, only count
+        // clashes the player can already see, so no feedback leaks whether a guess is right.
+        (settings.highlightWrong && solution ? digit !== solution[i] : blockers.length > 0)
+      ) {
+        // Mistakes still go in, but shake and cost a mistake.
         rejectFeedback(i, blockers);
         setMistakes((m) => m + 1);
         if (settings.mistakeLimit && mistakes + 1 >= MAX_MISTAKES) {
@@ -346,6 +392,12 @@ export default function SudokuBoard({
     <div
       data-board={settings.darkBoard ? "dark" : "light"}
       className="mt-8 flex w-full max-w-md flex-col gap-4 p-10"
+      // Clicking or tapping a button shouldn't focus it: a focused button repeats on Enter or
+      // Space, so pressing Enter after tapping "5" would enter 5 again and clear the cell.
+      // Keyboard users who Tab to a button still get focus and can press it normally.
+      onMouseDown={(e) => {
+        if ((e.target as HTMLElement).closest("button")) e.preventDefault();
+      }}
     >
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
       <div className="flex items-center justify-between">
@@ -435,7 +487,23 @@ export default function SudokuBoard({
             </div>
           </div>
         )}
-        {paused && !gameOver && (
+        {takenOver && !solved && !gameOver && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white px-6 board-dark:bg-neutral-800">
+            <p className="text-xl font-semibold text-black board-dark:text-neutral-100">
+              Game moved to another tab
+            </p>
+            <p className="text-sm text-neutral-600 board-dark:text-neutral-400">
+              This game was finished or replaced in another tab.
+            </p>
+            <button
+              onClick={onExit}
+              className="rounded-md bg-blue-600 px-5 py-2 text-white hover:bg-blue-700"
+            >
+              Back to menu
+            </button>
+          </div>
+        )}
+        {paused && !gameOver && !takenOver && (
           // Covers the board so the puzzle can't be studied while the clock is stopped.
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white board-dark:bg-neutral-800">
             <p className="text-2xl font-semibold text-black board-dark:text-neutral-100">Paused</p>

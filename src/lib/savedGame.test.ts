@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { parseSavedGame } from "@/lib/savedGame";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  finishSavedGame,
+  ownsSavedGame,
+  parseSavedGame,
+  readSavedGameRaw,
+  writeSavedGame,
+} from "@/lib/savedGame";
 import { createBoardState } from "@/lib/sudoku";
 
 const PUZZLE = "530070000600195000098000060800060003400803001700020006060000280000419005000080079";
@@ -50,5 +56,45 @@ describe("parseSavedGame", () => {
 
   it("ignores a game that is already solved", () => {
     expect(parseSavedGame(save({ cells: createBoardState(SOLUTION).cells }))).toBeNull();
+  });
+});
+
+describe("save ownership across tabs", () => {
+  beforeEach(() => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const game = {
+    difficulty: "medium" as const,
+    cells: createBoardState(PUZZLE).cells,
+    noteMode: false,
+    seconds: 1,
+    mistakes: 0,
+    hintsUsed: 0,
+  };
+
+  it("belongs to the game that wrote it until another game replaces it", () => {
+    writeSavedGame({ ...game, id: "a" });
+    expect(ownsSavedGame("a")).toBe(true);
+    writeSavedGame({ ...game, id: "b" });
+    expect(ownsSavedGame("a")).toBe(false);
+  });
+
+  it("finishing leaves a marker that can't be resumed and isn't owned", () => {
+    writeSavedGame({ ...game, id: "a" });
+    finishSavedGame("a");
+    expect(ownsSavedGame("a")).toBe(false);
+    expect(parseSavedGame(readSavedGameRaw())).toBeNull();
+  });
+
+  it("gives saves from before ids existed a stable id", () => {
+    expect(parseSavedGame(save())?.id).toBe("legacy");
+    expect(parseSavedGame(save({ id: "xyz" }))?.id).toBe("xyz");
   });
 });
