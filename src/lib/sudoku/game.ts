@@ -38,7 +38,7 @@ function updateCell(cells: Cell[], index: number, patch: Partial<Cell>): Cell[] 
 }
 
 /** Sets a value and removes that digit from the pencil notes of every peer. */
-function placeDigit(cells: Cell[], index: number, digit: number): Cell[] {
+export function placeDigit(cells: Cell[], index: number, digit: number): Cell[] {
   const peers = new Set(peersOf(index));
   return cells.map((c, k) => {
     if (k === index) return { ...c, value: digit, notes: [] };

@@ -52,6 +52,49 @@ describe("historyReducer", () => {
     expect(historyReducer(h, { type: "undo" })).toBe(h);
   });
 
+  it("keeps locked numbers through undo, still undoing other changes", () => {
+    let h = historyReducer(start, { type: "select", index: 3 });
+    h = historyReducer(h, { type: "input", digit: 6 }); // correct number at index 3
+    h = historyReducer(h, { type: "select", index: EMPTY });
+    h = historyReducer(h, { type: "input", digit: 1, asNote: true }); // a note elsewhere
+
+    h = historyReducer(h, { type: "undo", keep: [3] });
+    expect(h.present.cells[EMPTY].notes).toEqual([]); // the note is undone
+    expect(h.present.cells[3].value).toBe(6); // the locked number stays
+  });
+
+  it("skips undo steps that would only remove a locked number", () => {
+    let h = historyReducer(start, { type: "select", index: EMPTY });
+    h = historyReducer(h, { type: "input", digit: 1, asNote: true });
+    h = historyReducer(h, { type: "select", index: 3 });
+    h = historyReducer(h, { type: "input", digit: 6 }); // latest step: the locked number
+
+    // One press goes past the locked placement straight to undoing the note.
+    h = historyReducer(h, { type: "undo", keep: [3] });
+    expect(h.present.cells[3].value).toBe(6);
+    expect(h.present.cells[EMPTY].notes).toEqual([]);
+    expect(canUndo(h)).toBe(false);
+  });
+
+  it("re-clears peer notes when a kept number is restored", () => {
+    let h = historyReducer(start, { type: "select", index: EMPTY });
+    h = historyReducer(h, { type: "input", digit: 6, asNote: true, allowImpossibleNotes: true });
+    h = historyReducer(h, { type: "select", index: 3 });
+    h = historyReducer(h, { type: "input", digit: 6 }); // clears the 6 note in the same row
+    h = historyReducer(h, { type: "select", index: 40 });
+    h = historyReducer(h, { type: "input", digit: 2, asNote: true });
+
+    h = historyReducer(h, { type: "undo", keep: [3] });
+    expect(h.present.cells[40].notes).toEqual([]);
+
+    // Undoing further reaches the snapshot that still had the 6 note next to the placement.
+    // The kept 6 is re-placed, so that note must not come back.
+    h = historyReducer(h, { type: "undo", keep: [3] });
+    expect(h.present.cells[3].value).toBe(6);
+    expect(h.present.cells[EMPTY].notes).toEqual([]);
+    expect(canUndo(h)).toBe(false);
+  });
+
   it("clears history when a puzzle is loaded", () => {
     let h = historyReducer(start, { type: "select", index: EMPTY });
     h = historyReducer(h, { type: "input", digit: 4 });

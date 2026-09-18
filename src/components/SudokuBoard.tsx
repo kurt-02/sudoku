@@ -145,6 +145,27 @@ export default function SudokuBoard({
   // Latched when the limit is hit, so turning the setting off afterwards can't revive a lost game.
   const [gameOver, setGameOver] = useState(false);
 
+  // Correct numbers lock once placed, like the given ones: no erasing, overwriting, or undoing
+  // them. Only while numbers are checked against the answer ("Highlight wrong numbers"):
+  // otherwise a cell refusing to change would give away that its number is right.
+  const lockedCells = useMemo(() => {
+    const locked = new Set<number>();
+    if (!settings.highlightWrong || !solution) return locked;
+    cells.forEach((cell, i) => {
+      if (!cell.isGiven && cell.value !== null && cell.value === solution[i]) locked.add(i);
+    });
+    return locked;
+  }, [settings.highlightWrong, solution, cells]);
+  const selectedLocked = selectedIndex !== null && lockedCells.has(selectedIndex);
+
+  function erase() {
+    if (!selectedLocked) dispatch({ type: "erase" });
+  }
+
+  function undo() {
+    dispatch({ type: "undo", keep: [...lockedCells] });
+  }
+
   const [hintsUsed, setHintsUsed] = useState(initialHintsUsed);
   const hintsLeft = Math.max(0, HINTS_BY_DIFFICULTY[difficulty] - hintsUsed);
   // A hint shows the answer in a cell without entering it; it goes away once that cell is right.
@@ -324,7 +345,7 @@ export default function SudokuBoard({
   }
 
   function enterDigit(digit: number, asNote: boolean) {
-    if (finished) return;
+    if (finished || selectedLocked) return;
     const i = selectedIndex;
     const action = {
       type: "input",
@@ -395,7 +416,7 @@ export default function SudokuBoard({
     // Ctrl+Z / Cmd+Z undoes, matching every other app.
     if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === "KeyZ") {
       e.preventDefault();
-      if (!paused && !finished) dispatch({ type: "undo" });
+      if (!paused && !finished) undo();
       return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -414,7 +435,7 @@ export default function SudokuBoard({
       e.preventDefault();
       enterDigit(Number(digitKey[1]), e.shiftKey);
     } else if (e.key === "Backspace" || e.key === "Delete" || e.key === "0") {
-      dispatch({ type: "erase" });
+      erase();
     } else if (e.key === "h" || e.key === "H") {
       giveHint();
     } else if (e.key === "a" || e.key === "A") {
@@ -684,7 +705,7 @@ export default function SudokuBoard({
         <Tool
           icon={<UndoIcon />}
           label="Undo"
-          onClick={() => dispatch({ type: "undo" })}
+          onClick={undo}
           // Mistakes already made stay counted; undo only restores the board.
           disabled={paused || finished || !canUndo(history)}
           title="Undo (Ctrl+Z)"
@@ -692,8 +713,8 @@ export default function SudokuBoard({
         <Tool
           icon={<EraseIcon />}
           label="Erase"
-          onClick={() => dispatch({ type: "erase" })}
-          disabled={paused || finished}
+          onClick={erase}
+          disabled={paused || finished || selectedLocked}
           title="Erase (Backspace)"
         />
         <Tool
