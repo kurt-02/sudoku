@@ -14,6 +14,10 @@ type Props = {
   user: SessionUser | null;
   /** Unfinished game to offer resuming, if any. */
   saved: SavedGame | null;
+  /** A new game is being created on the server. */
+  starting?: boolean;
+  /** Why the last attempt to start a game failed. */
+  error?: string | null;
   onSelect: (difficulty: Difficulty) => void;
   onContinue: () => void;
 };
@@ -82,7 +86,14 @@ function ProgressRing({ filled }: { filled: number }) {
   );
 }
 
-export default function DifficultyMenu({ user, saved, onSelect, onContinue }: Props) {
+export default function DifficultyMenu({
+  user,
+  saved,
+  starting = false,
+  error = null,
+  onSelect,
+  onContinue,
+}: Props) {
   const filled = saved ? saved.cells.filter((c) => c.value !== null).length : 0;
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -113,7 +124,8 @@ export default function DifficultyMenu({ user, saved, onSelect, onContinue }: Pr
       {saved && (
         <button
           onClick={onContinue}
-          className="flex items-center gap-4 rounded-2xl bg-accent px-5 py-4 text-left text-white transition-[background-color,transform] duration-150 ease-out hover:bg-accent-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent motion-safe:active:scale-[0.98]"
+          disabled={starting}
+          className="flex items-center gap-4 rounded-2xl bg-accent px-5 py-4 text-left text-white transition-[background-color,transform] duration-150 ease-out hover:bg-accent-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60 motion-safe:active:scale-[0.98]"
         >
           <ProgressRing filled={filled} />
           <span className="min-w-0 flex-1">
@@ -129,16 +141,17 @@ export default function DifficultyMenu({ user, saved, onSelect, onContinue }: Pr
       )}
 
       <section>
-        <h2 className="mb-3 text-sm font-medium text-muted">
-          {saved ? "Or start a new game" : "New game"}
+        <h2 className="mb-3 text-sm font-medium text-muted" aria-live="polite">
+          {starting ? "Starting your game…" : saved ? "Or start a new game" : "New game"}
         </h2>
         <div className="flex flex-col overflow-hidden rounded-2xl bg-surface">
           {OPTIONS.map(({ difficulty, level, description }, i) => (
             <button
               key={difficulty}
               onClick={() => onSelect(difficulty)}
+              disabled={starting}
               title={`${CLUE_TARGETS[difficulty]} starting numbers`}
-              className={`flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:relative focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent ${
+              className={`flex items-center justify-between gap-4 px-5 py-4 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:relative focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent disabled:pointer-events-none disabled:opacity-50 ${
                 i > 0 ? "border-t border-line/60" : ""
               }`}
             >
@@ -150,6 +163,11 @@ export default function DifficultyMenu({ user, saved, onSelect, onContinue }: Pr
             </button>
           ))}
         </div>
+        {error && (
+          <p role="alert" className="mt-3 text-sm text-danger">
+            {error}
+          </p>
+        )}
         {saved && (
           <p className="mt-3 text-sm text-muted">Starting a new game replaces your saved one.</p>
         )}

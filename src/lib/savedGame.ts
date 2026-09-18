@@ -27,7 +27,7 @@ function isDigit(n: unknown): n is number {
   return Number.isInteger(n) && (n as number) >= 1 && (n as number) <= 9;
 }
 
-function isCell(c: unknown): c is Cell {
+export function isCell(c: unknown): c is Cell {
   if (typeof c !== "object" || c === null) return false;
   const { value, isGiven, notes } = c as Record<string, unknown>;
   return (

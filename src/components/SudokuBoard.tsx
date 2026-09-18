@@ -10,6 +10,12 @@ import {
   type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
+import {
+  finishGameAction,
+  pauseGameAction,
+  retryGameAction,
+  saveGameAction,
+} from "@/app/actions/game";
 import BoardOverlay from "@/components/BoardOverlay";
 import SudokuCell from "@/components/SudokuCells";
 import SettingsDialog from "@/components/SettingsDialog";
@@ -61,7 +67,7 @@ import {
   type Difficulty,
   type Direction,
 } from "@/lib/sudoku";
-import type { BoardState } from "@/types/game";
+import type { BoardState, Cell } from "@/types/game";
 
 /** Cell indices for each 3x3 box, so the board can be drawn as nine separate tiles. */
 const BOX_CELLS = Array.from({ length: 9 }, (_, b) => boxIndices(b));
@@ -106,9 +112,16 @@ const ARROWS: Record<string, Direction> = {
   ArrowRight: "right",
 };
 
+/** How often a running game checks in with the server (see lib/gameTime.ts). */
+const CHECK_IN_MS = 15_000;
+/** Wait for moves to settle before saving to the server. */
+const SAVE_DELAY_MS = 800;
+
 type Props = {
-  /** Identifies this play-through in storage (see savedGame.ts). */
+  /** Identifies this play-through: the server's game id, or the local save's id. */
   gameId: string;
+  /** Signed-in play: the server holds the game, its clock, and the solution. */
+  accountGames: boolean;
   /** A fresh puzzle, or a restored saved game. */
   initialBoard: BoardState;
   initialSeconds: number;
@@ -123,6 +136,7 @@ type Props = {
 
 export default function SudokuBoard({
   gameId: initialGameId,
+  accountGames,
   initialBoard,
   initialSeconds,
   initialMistakes,
@@ -218,12 +232,13 @@ export default function SudokuBoard({
   const [gameId, setGameId] = useState(initialGameId);
   const claimedSave = useRef(false);
   useEffect(() => {
-    if (takenOver) return;
+    if (accountGames || takenOver) return;
     if (claimedSave.current && !ownsSavedGame(gameId)) return;
     claimedSave.current = true;
     if (solved || gameOver) finishSavedGame(gameId);
     else writeSavedGame({ id: gameId, difficulty, cells, noteMode, seconds, mistakes, hintsUsed });
   }, [
+    accountGames,
     takenOver,
     gameId,
     solved,
@@ -238,9 +253,71 @@ export default function SudokuBoard({
 
   // Another tab changed the save: if it's no longer this game, stop here.
   const onSaveChangedElsewhere = useEffectEvent(() => {
+    if (accountGames) return;
     if (claimedSave.current && !solved && !gameOver && !ownsSavedGame(gameId)) setTakenOver(true);
   });
   useEffect(() => subscribeSavedGame(onSaveChangedElsewhere), []);
+
+  // --- Signed-in play: keep the server's copy of the game (and its clock) up to date. ---
+
+  /** Moves not yet sent to the server. */
+  const unsaved = useRef(false);
+  const saveToServer = useEffectEvent(() => {
+    unsaved.current = false;
+    saveGameAction(gameId, { cells, mistakes, hintsUsed })
+      .then((result) => {
+        // Finished or replaced in another tab or on another device.
+        if (result === "gone" && !solved && !gameOver) setTakenOver(true);
+      })
+      .catch(() => {
+        unsaved.current = true; // Offline for a moment: try again with the next change.
+      });
+  });
+
+  // Save shortly after the board or counts change, batching quick bursts of moves.
+  useEffect(() => {
+    if (!accountGames || finished) return;
+    unsaved.current = true;
+    const timer = setTimeout(saveToServer, SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [accountGames, finished, cells, mistakes, hintsUsed]);
+
+  // Leaving the board (back to the menu) sends any moves still waiting.
+  useEffect(
+    () => () => {
+      if (unsaved.current) saveToServer();
+    },
+    [],
+  );
+
+  // Check in while the clock runs, so the server stops counting soon after a tab is closed.
+  useEffect(() => {
+    if (!accountGames || !running) return;
+    const timer = setInterval(saveToServer, CHECK_IN_MS);
+    return () => clearInterval(timer);
+  }, [accountGames, running]);
+
+  // The server keeps the official clock: start it while playing, stop it on pause or leaving.
+  const setServerClock = useEffectEvent((paused: boolean) => {
+    pauseGameAction(gameId, paused).catch(() => {});
+  });
+  useEffect(() => {
+    if (!accountGames || !running) return;
+    setServerClock(false);
+    return () => setServerClock(true);
+  }, [accountGames, running]);
+
+  /** Reports the end of the game; the server checks a win against the stored solution. */
+  function finishOnServer(outcome: "won" | "lost", finalCells: Cell[], finalMistakes: number) {
+    if (!accountGames) return;
+    unsaved.current = false;
+    finishGameAction(gameId, { cells: finalCells, mistakes: finalMistakes, hintsUsed }, outcome)
+      .then((result) => {
+        if (result.status !== "ok")
+          console.error("[game] the server did not accept", outcome, result);
+      })
+      .catch((error) => console.error("[game] could not finish on the server", error));
+  }
 
   // Filled in by the move that solves the puzzle; drives the win screen.
   const [winResult, setWinResult] = useState<{
@@ -260,11 +337,24 @@ export default function SudokuBoard({
     });
   }
 
-  function retry() {
+  const [retryError, setRetryError] = useState<string | null>(null);
+
+  async function retry() {
+    setRetryError(null);
+    // A retry is a new play-through with the same puzzle.
+    if (accountGames) {
+      try {
+        const replay = await retryGameAction(gameId);
+        setGameId(replay.id);
+      } catch {
+        setRetryError("Couldn't restart the puzzle. Check your connection and try again.");
+        return;
+      }
+    } else {
+      setGameId(newGameId());
+      claimedSave.current = false; // The new local save is claimed afresh.
+    }
     updateStats((s) => recordStart(s, difficulty));
-    // A retry is a new play-through; it claims the save afresh.
-    setGameId(newGameId());
-    claimedSave.current = false;
     dispatch({ type: "load", puzzle: gridToString(givens) });
     setElapsedMs(0);
     setMistakes(0);
@@ -375,13 +465,17 @@ export default function SudokuBoard({
         if (settings.mistakeLimit && mistakes + 1 >= MAX_MISTAKES) {
           setGameOver(true);
           updateStats((s) => recordLoss(s, difficulty));
+          finishOnServer("lost", cells, mistakes + 1);
         }
       }
       if (!noteMode && !asNote) {
         // The reducer is pure, so preview the move to see what it completes.
         const next = gameReducer(state, action);
         if (next !== state) celebrateCompletions(gridFromCells(next.cells), i);
-        if (next !== state && isSolved(next.cells)) recordSolve();
+        if (next !== state && isSolved(next.cells)) {
+          recordSolve();
+          finishOnServer("won", next.cells, mistakes);
+        }
       }
     }
     dispatch(action);
@@ -614,11 +708,16 @@ export default function SudokuBoard({
             <p className="max-w-64 text-sm text-(--overlay-muted)">
               The game ends after {MAX_MISTAKES} mistakes. You played for {formatTime(seconds)}.
             </p>
+            {retryError && (
+              <p role="alert" className="max-w-64 text-sm text-(--digit-wrong)">
+                {retryError}
+              </p>
+            )}
           </BoardOverlay>
         )}
         {takenOver && !solved && !gameOver && (
           <BoardOverlay
-            title="Game moved to another tab"
+            title="Game continued elsewhere"
             solid
             actions={
               <button onClick={onExit} className={button.primary}>
@@ -627,7 +726,7 @@ export default function SudokuBoard({
             }
           >
             <p className="max-w-64 text-sm text-(--overlay-muted)">
-              This game was finished or replaced in another tab.
+              This game was finished or replaced in another tab or on another device.
             </p>
           </BoardOverlay>
         )}

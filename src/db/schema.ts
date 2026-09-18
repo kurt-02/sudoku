@@ -60,12 +60,16 @@ export const games = pgTable(
     solution: char("solution", { length: 81 }).notNull(),
     /** The player's board, including notes, as last saved. */
     cells: jsonb("cells").$type<Cell[]>().notNull(),
+    /** Play time banked by the server at each pause; see lib/gameTime.ts for the running part. */
     seconds: integer("seconds").notNull().default(0),
     mistakes: integer("mistakes").notNull().default(0),
     hintsUsed: integer("hints_used").notNull().default(0),
     status: gameStatus("status").notNull().default("playing"),
-    /** Server clock; a win can't claim to be faster than the time since this. */
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    /** When the clock last started running; null while paused or finished. */
+    resumedAt: timestamp("resumed_at", { withTimezone: true }),
+    /** Last save or check-in from the player, to stop counting time after a tab is closed. */
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     updatedAt,
   },

@@ -30,6 +30,9 @@ npm run dev                  # http://localhost:3000
 | `npm run db:migrate`   | Apply migrations to `DATABASE_URL_UNPOOLED` |
 | `npm run db:studio`    | Browse the database in Drizzle Studio       |
 
+Database tests run against the real `DATABASE_URL` and are skipped unless you opt in:
+`RUN_DB_TESTS=1 npm test` (they create and delete a throwaway test player).
+
 ## Project structure
 
 ```
