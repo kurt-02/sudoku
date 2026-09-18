@@ -1,6 +1,8 @@
 import { auth } from "@/auth";
 import SudokuGame from "@/components/SudokuGame";
 import { getPlayingGame, type ServerGame } from "@/db/games";
+import { getServerSettings } from "@/db/settings";
+import type { Settings } from "@/lib/settings";
 import type { SessionUser } from "@/types/auth";
 
 export const metadata = { title: "Play Sudoku" };
@@ -20,9 +22,13 @@ export default async function Home() {
   // to playing on this device like a guest rather than being locked out.
   let accountGames = false;
   let serverGame: ServerGame | null = null;
+  let accountSettings: Settings | null = null;
   if (session?.user?.id) {
     try {
-      serverGame = await getPlayingGame(session.user.id);
+      [serverGame, accountSettings] = await Promise.all([
+        getPlayingGame(session.user.id),
+        getServerSettings(session.user.id),
+      ]);
       accountGames = true;
     } catch (error) {
       console.error("[home] could not load the saved game", error);
@@ -31,7 +37,12 @@ export default async function Home() {
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-5">
-      <SudokuGame user={user} accountGames={accountGames} serverGame={serverGame} />
+      <SudokuGame
+        user={user}
+        accountGames={accountGames}
+        serverGame={serverGame}
+        accountSettings={accountSettings}
+      />
     </main>
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { resetStatsAction } from "@/app/actions/account";
+import { useAccountGames } from "@/components/AccountContext";
 import { button } from "@/components/ui/button";
 import { CloseIcon } from "@/components/ui/icons";
 import type { Settings } from "@/lib/settings";
@@ -42,7 +44,9 @@ const OPTIONS: { key: keyof Settings; label: string; description: string }[] = [
 
 export default function SettingsDialog({ onClose }: Props) {
   const [settings, updateSettings] = useSettings();
+  const accountGames = useAccountGames();
   const [statsCleared, setStatsCleared] = useState(false);
+  const [resetError, setResetError] = useState(false);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -52,9 +56,19 @@ export default function SettingsDialog({ onClose }: Props) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
-  function clearStats() {
+  async function clearStats() {
     if (!window.confirm("Reset all stats? This can't be undone.")) return;
-    resetStats();
+    setResetError(false);
+    if (accountGames) {
+      try {
+        await resetStatsAction();
+      } catch {
+        setResetError(true);
+        return;
+      }
+    } else {
+      resetStats();
+    }
     setStatsCleared(true);
   }
 
@@ -110,7 +124,13 @@ export default function SettingsDialog({ onClose }: Props) {
 
         <div className="mt-2 flex items-center justify-between gap-4 border-t border-line/60 px-4 pt-3 pb-2">
           <span className="text-xs text-muted">
-            {statsCleared ? "Stats reset." : "Wins, best times, and streaks"}
+            {resetError
+              ? "Couldn't reset. Check your connection and try again."
+              : statsCleared
+                ? "Stats reset."
+                : accountGames
+                  ? "Wins, best times, and streaks on your account"
+                  : "Wins, best times, and streaks"}
           </span>
           <button onClick={clearStats} disabled={statsCleared} className={button.danger}>
             Reset stats

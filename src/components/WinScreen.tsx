@@ -11,8 +11,8 @@ type Props = {
   seconds: number;
   mistakes: number;
   hintsUsed: number;
-  /** Stats for this difficulty, already including this win. */
-  stats: DifficultyStats;
+  /** Stats for this difficulty, already including this win; null if it couldn't be saved. */
+  stats: DifficultyStats | null;
   isNewBest: boolean;
   animate: boolean;
   /** Hides the "of 3" when the mistake limit is off. */
@@ -43,8 +43,8 @@ export default function WinScreen({
   onNewGame,
   onExit,
 }: Props) {
-  const rate = winRate(stats);
-  const average = averageWinSeconds(stats);
+  const rate = stats && winRate(stats);
+  const average = stats && averageWinSeconds(stats);
   const mistakeText = mistakeLimit
     ? `${mistakes} of ${MAX_MISTAKES} mistakes`
     : `${mistakes} ${mistakes === 1 ? "mistake" : "mistakes"}`;
@@ -79,17 +79,24 @@ export default function WinScreen({
         </span>
       </div>
 
-      <div className="grid w-full max-w-xs grid-cols-3 gap-y-2 rounded-xl bg-(--overlay-button) px-2 py-2.5 sm:gap-y-3 sm:py-3">
-        <Stat label="Won" value={String(stats.won)} />
-        <Stat label="Win rate" value={rate === null ? "–" : `${rate}%`} />
-        <Stat label="Streak" value={String(stats.currentStreak)} />
-        <Stat
-          label="Best time"
-          value={stats.bestSeconds === null ? "–" : formatTime(stats.bestSeconds)}
-        />
-        <Stat label="Average" value={average === null ? "–" : formatTime(average)} />
-        <Stat label="Best streak" value={String(stats.bestStreak)} />
-      </div>
+      {!stats && (
+        <p role="alert" className="max-w-64 text-sm text-(--overlay-muted)">
+          This win couldn&apos;t be saved to your account. Check your connection.
+        </p>
+      )}
+      {stats && (
+        <div className="grid w-full max-w-xs grid-cols-3 gap-y-2 rounded-xl bg-(--overlay-button) px-2 py-2.5 sm:gap-y-3 sm:py-3">
+          <Stat label="Won" value={String(stats.won)} />
+          <Stat label="Win rate" value={rate === null ? "–" : `${rate}%`} />
+          <Stat label="Streak" value={String(stats.currentStreak)} />
+          <Stat
+            label="Best time"
+            value={stats.bestSeconds === null ? "–" : formatTime(stats.bestSeconds)}
+          />
+          <Stat label="Average" value={average === null ? "–" : formatTime(average)} />
+          <Stat label="Best streak" value={String(stats.bestStreak)} />
+        </div>
+      )}
     </BoardOverlay>
   );
 }

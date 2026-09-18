@@ -28,18 +28,22 @@ export const DEFAULT_SETTINGS: Settings = {
 
 const STORAGE_KEY = "sudoku:settings";
 
-/** Parses stored JSON, keeping only known boolean keys over the defaults. */
+/** Keeps only known boolean keys over the defaults; anything else is ignored. */
+export function sanitizeSettings(data: unknown): Settings {
+  const settings = { ...DEFAULT_SETTINGS };
+  if (typeof data !== "object" || data === null) return settings;
+  for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
+    const value = (data as Record<string, unknown>)[key];
+    if (typeof value === "boolean") settings[key] = value;
+  }
+  return settings;
+}
+
+/** Parses stored JSON (see sanitizeSettings). */
 export function parseSettings(raw: string | null): Settings {
   if (!raw) return DEFAULT_SETTINGS;
   try {
-    const data: unknown = JSON.parse(raw);
-    if (typeof data !== "object" || data === null) return DEFAULT_SETTINGS;
-    const settings = { ...DEFAULT_SETTINGS };
-    for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
-      const value = (data as Record<string, unknown>)[key];
-      if (typeof value === "boolean") settings[key] = value;
-    }
-    return settings;
+    return sanitizeSettings(JSON.parse(raw));
   } catch {
     return DEFAULT_SETTINGS;
   }

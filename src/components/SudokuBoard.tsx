@@ -321,11 +321,30 @@ export default function SudokuBoard({
 
   // Filled in by the move that solves the puzzle; drives the win screen.
   const [winResult, setWinResult] = useState<{
-    stats: DifficultyStats;
+    /** Null if the result couldn't be saved (signed in but offline). */
+    stats: DifficultyStats | null;
     isNewBest: boolean;
+    /** The official time: the server's clock when signed in, this device's otherwise. */
+    seconds: number;
   } | null>(null);
 
-  function recordSolve() {
+  function recordSolve(finalCells: Cell[]) {
+    if (accountGames) {
+      // The server checks the board against the solution, then records the win in the
+      // player's stats using its own clock.
+      unsaved.current = false;
+      const unsavedResult = { stats: null, isNewBest: false, seconds };
+      finishGameAction(gameId, { cells: finalCells, mistakes, hintsUsed }, "won")
+        .then((result) =>
+          setWinResult(
+            result.status === "ok"
+              ? { stats: result.stats, isNewBest: result.isNewBest, seconds: result.seconds }
+              : unsavedResult,
+          ),
+        )
+        .catch(() => setWinResult(unsavedResult));
+      return;
+    }
     let previousBest: number | null = null;
     const stats = updateStats((s) => {
       previousBest = s.byDifficulty[difficulty].bestSeconds;
@@ -334,6 +353,7 @@ export default function SudokuBoard({
     setWinResult({
       stats: stats.byDifficulty[difficulty],
       isNewBest: previousBest === null || seconds < previousBest,
+      seconds,
     });
   }
 
@@ -354,7 +374,7 @@ export default function SudokuBoard({
       setGameId(newGameId());
       claimedSave.current = false; // The new local save is claimed afresh.
     }
-    updateStats((s) => recordStart(s, difficulty));
+    if (!accountGames) updateStats((s) => recordStart(s, difficulty)); // Else the server counts it.
     dispatch({ type: "load", puzzle: gridToString(givens) });
     setElapsedMs(0);
     setMistakes(0);
@@ -464,7 +484,7 @@ export default function SudokuBoard({
         setMistakes((m) => m + 1);
         if (settings.mistakeLimit && mistakes + 1 >= MAX_MISTAKES) {
           setGameOver(true);
-          updateStats((s) => recordLoss(s, difficulty));
+          if (!accountGames) updateStats((s) => recordLoss(s, difficulty));
           finishOnServer("lost", cells, mistakes + 1);
         }
       }
@@ -473,8 +493,7 @@ export default function SudokuBoard({
         const next = gameReducer(state, action);
         if (next !== state) celebrateCompletions(gridFromCells(next.cells), i);
         if (next !== state && isSolved(next.cells)) {
-          recordSolve();
-          finishOnServer("won", next.cells, mistakes);
+          recordSolve(next.cells);
         }
       }
     }
@@ -678,7 +697,7 @@ export default function SudokuBoard({
         {solved && winResult && (
           <WinScreen
             difficulty={difficulty}
-            seconds={seconds}
+            seconds={winResult.seconds}
             mistakes={mistakes}
             hintsUsed={hintsUsed}
             stats={winResult.stats}

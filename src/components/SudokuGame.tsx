@@ -3,9 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { startGameAction } from "@/app/actions/game";
+import { AccountContext } from "@/components/AccountContext";
+import AccountSettingsSync from "@/components/AccountSettingsSync";
 import DifficultyMenu from "@/components/DifficultyMenu";
 import SudokuBoard from "@/components/SudokuBoard";
 import type { ServerGame } from "@/db/games";
+import type { Settings } from "@/lib/settings";
 import {
   newGameId,
   parseSavedGame,
@@ -37,6 +40,8 @@ type Props = {
   accountGames: boolean;
   /** The player's unfinished server game, loaded with the page. */
   serverGame: ServerGame | null;
+  /** Settings stored on the account (null if never saved). */
+  accountSettings: Settings | null;
 };
 
 /** The menu's Continue card shows the same fields for server and local games. */
@@ -45,7 +50,7 @@ function asSaved(game: ServerGame): SavedGame {
 }
 
 /** Top-level flow: pick a difficulty (or continue a saved game), then play. */
-export default function SudokuGame({ user, accountGames, serverGame }: Props) {
+export default function SudokuGame({ user, accountGames, serverGame, accountSettings }: Props) {
   const router = useRouter();
   const [game, setGame] = useState<Game | null>(null);
   const [starting, setStarting] = useState(false);
@@ -62,18 +67,9 @@ export default function SudokuGame({ user, accountGames, serverGame }: Props) {
 
   /** `afterFinish`: started from the win screen, so nothing unfinished is being given up. */
   async function startGame(difficulty: Difficulty, afterFinish = false) {
-    // Local: read fresh, since the board may have just cleared the save without a re-render.
-    const unfinished = afterFinish
-      ? null
-      : accountGames
-        ? saved
-        : parseSavedGame(readSavedGameRaw());
-    updateStats((s) =>
-      recordStart(unfinished ? recordAbandon(s, unfinished.difficulty) : s, difficulty),
-    );
-
     if (accountGames) {
-      // The server creates the puzzle and keeps its solution.
+      // The server creates the puzzle, keeps its solution, and counts the start (and any game
+      // given up by starting this one) in the player's stats.
       setStarting(true);
       setStartError(null);
       try {
@@ -96,7 +92,13 @@ export default function SudokuGame({ user, accountGames, serverGame }: Props) {
       return;
     }
 
-    // Guests: generated on click (in the browser), so there's no hydration mismatch.
+    // Guests: stats stay on this device. Read the save fresh, since the board may have just
+    // cleared it without this component re-rendering.
+    const unfinished = afterFinish ? null : parseSavedGame(readSavedGameRaw());
+    updateStats((s) =>
+      recordStart(unfinished ? recordAbandon(s, unfinished.difficulty) : s, difficulty),
+    );
+    // Generated on click (in the browser), so there's no hydration mismatch.
     const puzzle = gridToString(generatePuzzle(difficulty).puzzle);
     open({
       gameId: newGameId(),
@@ -126,31 +128,32 @@ export default function SudokuGame({ user, accountGames, serverGame }: Props) {
     if (accountGames) router.refresh();
   }
 
-  if (!game) {
-    return (
-      <DifficultyMenu
-        user={user}
-        saved={saved}
-        starting={starting}
-        error={startError}
-        onSelect={startGame}
-        onContinue={continueGame}
-      />
-    );
-  }
-
   return (
-    <SudokuBoard
-      key={game.id}
-      gameId={game.gameId}
-      accountGames={accountGames}
-      initialBoard={game.initialBoard}
-      initialSeconds={game.initialSeconds}
-      initialMistakes={game.initialMistakes}
-      initialHintsUsed={game.initialHintsUsed}
-      difficulty={game.difficulty}
-      onExit={exitGame}
-      onNewGame={(difficulty) => startGame(difficulty, true)}
-    />
+    <AccountContext value={accountGames}>
+      {accountGames && <AccountSettingsSync accountSettings={accountSettings} />}
+      {game ? (
+        <SudokuBoard
+          key={game.id}
+          gameId={game.gameId}
+          accountGames={accountGames}
+          initialBoard={game.initialBoard}
+          initialSeconds={game.initialSeconds}
+          initialMistakes={game.initialMistakes}
+          initialHintsUsed={game.initialHintsUsed}
+          difficulty={game.difficulty}
+          onExit={exitGame}
+          onNewGame={(difficulty) => startGame(difficulty, true)}
+        />
+      ) : (
+        <DifficultyMenu
+          user={user}
+          saved={saved}
+          starting={starting}
+          error={startError}
+          onSelect={startGame}
+          onContinue={continueGame}
+        />
+      )}
+    </AccountContext>
   );
 }

@@ -2,8 +2,10 @@ import "server-only";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games } from "@/db/schema";
+import { recordServerAbandon, recordServerResult, recordServerStart } from "@/db/stats";
 import { activeSeconds } from "@/lib/gameTime";
 import { isValidBoard, matchesSolution } from "@/lib/gameValidation";
+import type { DifficultyStats } from "@/lib/stats";
 import {
   createBoardState,
   generatePuzzle,
@@ -116,10 +118,13 @@ export async function createGame(
     }
 
     const now = new Date();
-    await tx
+    const abandoned = await tx
       .update(games)
       .set({ status: "abandoned", finishedAt: now, resumedAt: null })
-      .where(and(eq(games.userId, userId), eq(games.status, "playing")));
+      .where(and(eq(games.userId, userId), eq(games.status, "playing")))
+      .returning({ difficulty: games.difficulty });
+    for (const game of abandoned) await recordServerAbandon(tx, userId, game.difficulty);
+    await recordServerStart(tx, userId, difficulty);
     const [row] = await tx
       .insert(games)
       .values({
@@ -175,7 +180,15 @@ export async function setGamePaused(
 }
 
 export type FinishResult =
-  { status: "ok"; seconds: number } | { status: "gone" | "invalid" | "not-solved" };
+  | {
+      status: "ok";
+      /** The server's official play time. */
+      seconds: number;
+      /** This difficulty's stats, including this result. */
+      stats: DifficultyStats;
+      isNewBest: boolean;
+    }
+  | { status: "gone" | "invalid" | "not-solved" };
 
 /**
  * Ends a game. A win only counts if every cell matches the stored solution; its time is the
@@ -194,17 +207,25 @@ export async function finishGame(
   }
   const now = new Date();
   const seconds = activeSeconds(row, now);
-  await getDb()
-    .update(games)
-    .set({
-      cells: snapshot.cells,
-      ...mergeCounts(row, snapshot),
-      status: snapshot.outcome,
-      seconds,
-      resumedAt: null,
-      lastSeenAt: now,
-      finishedAt: now,
-    })
-    .where(and(eq(games.id, gameId), eq(games.status, "playing")));
-  return { status: "ok", seconds };
+  const cells = snapshot.cells;
+  return getDb().transaction(async (tx) => {
+    // Only the request that actually moves the game out of "playing" records a result, so a
+    // repeated or racing finish can't count twice.
+    const finished = await tx
+      .update(games)
+      .set({
+        cells,
+        ...mergeCounts(row, snapshot),
+        status: snapshot.outcome,
+        seconds,
+        resumedAt: null,
+        lastSeenAt: now,
+        finishedAt: now,
+      })
+      .where(and(eq(games.id, gameId), eq(games.status, "playing")))
+      .returning({ id: games.id });
+    if (finished.length === 0) return { status: "gone" } as const;
+    const result = await recordServerResult(tx, userId, row.difficulty, snapshot.outcome, seconds);
+    return { status: "ok", seconds, ...result } as const;
+  });
 }
