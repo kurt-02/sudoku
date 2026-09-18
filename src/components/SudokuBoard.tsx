@@ -195,6 +195,7 @@ export default function SudokuBoard({
     setGameOver(false);
     setHintsUsed(0);
     setHintIndex(null);
+    setWinResult(null);
     setPaused(false);
   }
 
