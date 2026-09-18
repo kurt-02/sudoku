@@ -7,15 +7,15 @@ const BASE =
 
 export const button = {
   /** The one main action in a view. */
-  primary: `${BASE} rounded-xl bg-accent px-5 py-2.5 text-white hover:bg-accent-strong`,
+  primary: `${BASE} rounded-xl bg-accent px-5 py-2.5 text-white hover:bg-accent-strong hover:cursor-pointer`,
   /** Secondary actions on the page background. */
-  secondary: `${BASE} rounded-xl bg-surface px-5 py-2.5 text-fg hover:bg-surface-hover`,
+  secondary: `${BASE} rounded-xl bg-surface px-5 py-2.5 text-fg hover:bg-surface-hover hover:cursor-pointer`,
   /** Low-emphasis text actions. */
-  ghost: `${BASE} rounded-xl px-3 py-2 text-muted hover:bg-surface hover:text-fg`,
+  ghost: `${BASE} rounded-xl px-3 py-2 text-muted hover:bg-surface hover:text-fg hover:cursor-pointer`,
   /** Destructive low-emphasis actions (Reset stats). */
-  danger: `${BASE} rounded-xl px-3 py-2 text-danger hover:bg-danger/10`,
+  danger: `${BASE} shrink-0 rounded-lg px-2.5 py-1.5 text-xs text-danger hover:bg-danger/10 hover:cursor-pointer`,
   /** Square icon-only buttons in headers. */
-  icon: `${BASE} size-10 rounded-xl text-muted hover:bg-surface hover:text-fg`,
+  icon: `${BASE} size-10 rounded-xl text-muted hover:bg-surface hover:text-fg hover:cursor-pointer`,
   /** Secondary action shown on top of the board (win, pause, game over), themed with the board. */
-  boardSecondary: `${BASE} rounded-xl bg-(--overlay-button) px-5 py-2.5 text-(--overlay-fg) hover:bg-(--overlay-button-hover)`,
+  boardSecondary: `${BASE} rounded-xl bg-(--overlay-button) px-5 py-2.5 text-(--overlay-fg) hover:bg-(--overlay-button-hover) hover:cursor-pointer`,
 };

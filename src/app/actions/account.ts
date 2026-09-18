@@ -1,10 +1,11 @@
 "use server";
 
 // Server Functions are reachable by direct POST, so each one checks the session itself.
-import { auth } from "@/auth";
+import { auth, signOut } from "@/auth";
 import { importGuestData, type ImportResult } from "@/db/import";
 import { saveServerSettings } from "@/db/settings";
 import { getServerStats, resetServerStats } from "@/db/stats";
+import { deleteUser } from "@/db/users";
 import type { Stats } from "@/lib/stats";
 
 async function requireUserId(): Promise<string> {
@@ -25,6 +26,12 @@ export async function getMyStatsAction(): Promise<Stats> {
 
 export async function resetStatsAction(): Promise<void> {
   await resetServerStats(await requireUserId());
+}
+
+/** Permanently deletes the account and everything saved with it, then signs out. */
+export async function deleteAccountAction(): Promise<void> {
+  await deleteUser(await requireUserId());
+  await signOut({ redirectTo: "/" });
 }
 
 /** Moves guest progress from this browser into the account (see db/import.ts). */

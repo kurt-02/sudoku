@@ -256,5 +256,27 @@ describe.skipIf(!process.env.RUN_DB_TESTS)(
       expect((await importGuestData(userId, { game: guestSave({ cells }) })).game).toBe("none");
       expect(await getPlayingGame(userId)).toBeNull();
     });
+
+    it("deleting an account removes its games, stats, and settings", async () => {
+      const { deleteUser, userExists } = await import("@/db/users");
+      const { userSettings } = await import("@/db/schema");
+      const doomed = await upsertGoogleUser({
+        googleId: `test-delete-${Date.now()}`,
+        name: null,
+        email: null,
+        image: null,
+      });
+      await createGame(doomed, { difficulty: "easy" });
+      await saveServerSettings(doomed, { darkBoard: true });
+
+      await deleteUser(doomed);
+      expect(await userExists(doomed)).toBe(false);
+      const left = await Promise.all([
+        getDb().select().from(games).where(eq(games.userId, doomed)),
+        getDb().select().from(userStats).where(eq(userStats.userId, doomed)),
+        getDb().select().from(userSettings).where(eq(userSettings.userId, doomed)),
+      ]);
+      expect(left.map((rows) => rows.length)).toEqual([0, 0, 0]);
+    });
   },
 );

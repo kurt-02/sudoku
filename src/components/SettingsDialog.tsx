@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { resetStatsAction } from "@/app/actions/account";
+import { deleteAccountAction, resetStatsAction } from "@/app/actions/account";
 import { useAccountGames } from "@/components/AccountContext";
 import { button } from "@/components/ui/button";
 import Dialog from "@/components/ui/Dialog";
@@ -47,6 +47,8 @@ export default function SettingsDialog({ onClose }: Props) {
   const accountGames = useAccountGames();
   const [statsCleared, setStatsCleared] = useState(false);
   const [resetError, setResetError] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(false);
 
   async function clearStats() {
     if (!window.confirm("Reset all stats? This can't be undone.")) return;
@@ -62,6 +64,21 @@ export default function SettingsDialog({ onClose }: Props) {
       resetStats();
     }
     setStatsCleared(true);
+  }
+
+  async function deleteAccount() {
+    const confirmed = window.confirm(
+      "Delete your account? This permanently removes your saved game, stats, and settings, and signs you out. This can't be undone.",
+    );
+    if (!confirmed) return;
+    setDeleting(true);
+    setDeleteError(false);
+    try {
+      await deleteAccountAction(); // Signs out and reloads the page when it succeeds.
+    } catch {
+      setDeleteError(true);
+      setDeleting(false);
+    }
   }
 
   return (
@@ -109,6 +126,19 @@ export default function SettingsDialog({ onClose }: Props) {
           Reset stats
         </button>
       </div>
+
+      {accountGames && (
+        <div className="flex items-center justify-between gap-4 px-4 pt-1 pb-2">
+          <span className="text-xs text-muted">
+            {deleteError
+              ? "Couldn't delete your account. Check your connection and try again."
+              : "Remove your account and everything saved with it"}
+          </span>
+          <button onClick={deleteAccount} disabled={deleting} className={button.danger}>
+            {deleting ? "Deleting…" : "Delete account"}
+          </button>
+        </div>
+      )}
     </Dialog>
   );
 }
