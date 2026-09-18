@@ -78,7 +78,8 @@ export default function SudokuBoard({
   const [mistakes, setMistakes] = useState(initialMistakes);
   const [settings] = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const gameOver = settings.mistakeLimit && mistakes >= MAX_MISTAKES;
+  // Latched when the limit is hit, so turning the setting off afterwards can't revive a lost game.
+  const [gameOver, setGameOver] = useState(false);
 
   const [hintsUsed, setHintsUsed] = useState(initialHintsUsed);
   const hintsLeft = Math.max(0, HINTS_BY_DIFFICULTY[difficulty] - hintsUsed);
@@ -100,15 +101,28 @@ export default function SudokuBoard({
   );
   const selectedValue = selectedIndex === null ? null : cells[selectedIndex].value;
 
-  // Timer: ticks once a second while the game is still being played.
-  const [seconds, setSeconds] = useState(initialSeconds);
+  // Timer: accumulates real elapsed milliseconds while the game is being played. Measuring the
+  // actual time between ticks (and at the moment of pausing) means partial seconds are never lost,
+  // so rapidly pausing and resuming can't freeze the clock.
+  const [elapsedMs, setElapsedMs] = useState(initialSeconds * 1000);
+  const seconds = Math.floor(elapsedMs / 1000);
   const [paused, setPaused] = useState(false);
   const finished = solved || gameOver;
   const running = !paused && !finished;
   useEffect(() => {
     if (!running) return;
-    const interval = setInterval(() => setSeconds((s) => s + 1), 1000);
-    return () => clearInterval(interval);
+    let last = performance.now();
+    function tick() {
+      const now = performance.now();
+      const delta = now - last;
+      last = now;
+      setElapsedMs((ms) => ms + delta);
+    }
+    const interval = setInterval(tick, 250);
+    return () => {
+      clearInterval(interval);
+      tick(); // Count the partial interval up to the pause.
+    };
   }, [running]);
 
   // Save after every move and timer tick; a solved or lost game has nothing left to resume.
@@ -138,8 +152,9 @@ export default function SudokuBoard({
   function retry() {
     updateStats((s) => recordStart(s, difficulty));
     dispatch({ type: "load", puzzle: gridToString(givens) });
-    setSeconds(0);
+    setElapsedMs(0);
     setMistakes(0);
+    setGameOver(false);
     setHintsUsed(0);
     setHintIndex(null);
     setPaused(false);
@@ -212,7 +227,7 @@ export default function SudokuBoard({
   }
 
   function enterDigit(digit: number, asNote: boolean) {
-    if (gameOver) return;
+    if (finished) return;
     const i = selectedIndex;
     const action = {
       type: "input",
@@ -235,6 +250,7 @@ export default function SudokuBoard({
         rejectFeedback(i, blockers);
         setMistakes((m) => m + 1);
         if (settings.mistakeLimit && mistakes + 1 >= MAX_MISTAKES) {
+          setGameOver(true);
           updateStats((s) => recordLoss(s, difficulty));
         }
       }
@@ -285,8 +301,8 @@ export default function SudokuBoard({
       setPaused((p) => !p);
       return;
     }
-    // The board is covered while paused or after losing, so ignore everything else.
-    if (paused || gameOver) return;
+    // The board is locked while paused and once the game is won or lost.
+    if (paused || finished) return;
     // Match the physical key: with Shift held, e.key is "!" or "@" rather than "1" or "2".
     const digitKey = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
     if (e.key in ARROWS) {
@@ -472,7 +488,7 @@ export default function SudokuBoard({
             <button
               key={digit}
               onClick={(e) => enterDigit(digit, e.shiftKey)}
-              disabled={isComplete || paused || gameOver}
+              disabled={isComplete || paused || finished}
               aria-hidden={isComplete}
               aria-label={`${digit}, ${remaining} left`}
               // Stay in the grid while hidden so the other buttons keep their positions.
@@ -506,7 +522,7 @@ export default function SudokuBoard({
         </button>
         <button
           onClick={() => dispatch({ type: "erase" })}
-          disabled={paused || gameOver}
+          disabled={paused || finished}
           title="Erase (Backspace)"
           className={CONTROL}
         >
@@ -515,7 +531,7 @@ export default function SudokuBoard({
         </button>
         <button
           onClick={() => dispatch({ type: "toggleNoteMode" })}
-          disabled={paused || gameOver}
+          disabled={paused || finished}
           aria-pressed={noteMode}
           title="Toggle notes (N), or hold Shift while entering a number"
           className={`${CONTROL} ${notesActive ? "border-blue-600! bg-blue-600! text-white!" : ""}`}
@@ -527,7 +543,7 @@ export default function SudokuBoard({
         </button>
         <button
           onClick={() => dispatch({ type: "autoNotes" })}
-          disabled={paused || gameOver}
+          disabled={paused || finished}
           title="Fill every empty cell with its possible numbers (A)"
           className={CONTROL}
         >
