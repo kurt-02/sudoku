@@ -1,5 +1,7 @@
 "use client";
 
+import BoardOverlay from "@/components/BoardOverlay";
+import { button } from "@/components/ui/button";
 import { formatTime } from "@/lib/format";
 import { averageWinSeconds, winRate, type DifficultyStats } from "@/lib/stats";
 import { MAX_MISTAKES, type Difficulty } from "@/lib/sudoku";
@@ -13,7 +15,7 @@ type Props = {
   stats: DifficultyStats;
   isNewBest: boolean;
   animate: boolean;
-  /** Hides the "/3" when the mistake limit is off. */
+  /** Hides the "of 3" when the mistake limit is off. */
   mistakeLimit: boolean;
   onNewGame: () => void;
   onExit: () => void;
@@ -21,13 +23,9 @@ type Props = {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col items-center">
-      <span className="text-lg font-semibold text-black tabular-nums board-dark:text-neutral-100">
-        {value}
-      </span>
-      <span className="text-[0.65rem] tracking-wide text-neutral-500 uppercase board-dark:text-neutral-400">
-        {label}
-      </span>
+    <div className="flex flex-col items-center gap-0.5">
+      <span className="text-lg font-semibold text-(--overlay-fg) tabular-nums">{value}</span>
+      <span className="text-xs text-(--overlay-muted)">{label}</span>
     </div>
   );
 }
@@ -47,56 +45,51 @@ export default function WinScreen({
 }: Props) {
   const rate = winRate(stats);
   const average = averageWinSeconds(stats);
+  const mistakeText = mistakeLimit
+    ? `${mistakes} of ${MAX_MISTAKES} mistakes`
+    : `${mistakes} ${mistakes === 1 ? "mistake" : "mistakes"}`;
+  const hintText = `${hintsUsed} ${hintsUsed === 1 ? "hint" : "hints"}`;
 
   return (
-    <div
-      role="dialog"
-      aria-label="Puzzle solved"
-      className={`absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/95 px-4 board-dark:bg-neutral-900/95 ${animate ? "motion-safe:animate-fade-in" : ""}`}
+    <BoardOverlay
+      title="Solved"
+      animation={animate ? "motion-safe:animate-fade-in-late" : ""}
+      actions={
+        <>
+          <button onClick={onNewGame} className={button.primary}>
+            New {difficulty} game
+          </button>
+          <button onClick={onExit} className={button.boardSecondary}>
+            Menu
+          </button>
+        </>
+      }
     >
-      <p className="text-2xl font-semibold text-black board-dark:text-neutral-100">Solved!</p>
-
-      <div className="flex flex-col items-center">
-        <span className="font-mono text-3xl text-black tabular-nums board-dark:text-neutral-100">
+      <div className="flex flex-col items-center gap-1.5">
+        <span className="text-4xl font-semibold tracking-tight text-(--overlay-fg) tabular-nums sm:text-5xl">
           {formatTime(seconds)}
         </span>
         {isNewBest && (
-          <span className="mt-1 rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
+          <span className="rounded-full bg-accent px-2.5 py-0.5 text-xs font-semibold text-white">
             New best time
           </span>
         )}
-        <span className="mt-1 text-xs text-neutral-500 capitalize board-dark:text-neutral-400">
-          {difficulty} · {mistakes}
-          {mistakeLimit ? `/${MAX_MISTAKES}` : ""} mistakes · {hintsUsed} hints
+        <span className="text-sm text-(--overlay-muted)">
+          {mistakeText}, {hintText}
         </span>
       </div>
 
-      <div className="grid w-full max-w-xs grid-cols-3 gap-y-2 border-t border-neutral-200 pt-3 board-dark:border-neutral-700">
+      <div className="grid w-full max-w-xs grid-cols-3 gap-y-2 rounded-xl bg-(--overlay-button) px-2 py-2.5 sm:gap-y-3 sm:py-3">
         <Stat label="Won" value={String(stats.won)} />
         <Stat label="Win rate" value={rate === null ? "–" : `${rate}%`} />
         <Stat label="Streak" value={String(stats.currentStreak)} />
         <Stat
-          label="Best"
+          label="Best time"
           value={stats.bestSeconds === null ? "–" : formatTime(stats.bestSeconds)}
         />
         <Stat label="Average" value={average === null ? "–" : formatTime(average)} />
         <Stat label="Best streak" value={String(stats.bestStreak)} />
       </div>
-
-      <div className="mt-1 flex gap-2">
-        <button
-          onClick={onNewGame}
-          className="rounded-md bg-blue-600 px-5 py-2 text-white hover:bg-blue-700"
-        >
-          New game
-        </button>
-        <button
-          onClick={onExit}
-          className="rounded-md border border-neutral-300 bg-white px-5 py-2 text-black hover:bg-neutral-100 board-dark:border-neutral-700 board-dark:bg-neutral-800 board-dark:text-neutral-100 board-dark:hover:bg-neutral-700"
-        >
-          Menu
-        </button>
-      </div>
-    </div>
+    </BoardOverlay>
   );
 }

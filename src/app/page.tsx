@@ -16,7 +16,7 @@ export default async function Home() {
     : null;
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center bg-background px-6 text-center">
+    <main className="flex flex-1 flex-col items-center justify-center px-5">
       <SudokuGame user={user} />
     </main>
   );

@@ -1,9 +1,31 @@
 "use client";
 
-import { useEffect, useEffectEvent, useMemo, useReducer, useRef, useState } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+} from "react";
+import BoardOverlay from "@/components/BoardOverlay";
 import SudokuCell from "@/components/SudokuCells";
 import SettingsDialog from "@/components/SettingsDialog";
 import WinScreen from "@/components/WinScreen";
+import { button } from "@/components/ui/button";
+import {
+  AutoNotesIcon,
+  ChevronLeftIcon,
+  EraseIcon,
+  HintIcon,
+  PauseIcon,
+  PencilIcon,
+  PlayIcon,
+  SettingsIcon,
+  UndoIcon,
+} from "@/components/ui/icons";
 import { formatTime } from "@/lib/format";
 import { useSettings } from "@/lib/useSettings";
 import {
@@ -16,6 +38,7 @@ import {
 import { recordLoss, recordStart, recordWin, updateStats, type DifficultyStats } from "@/lib/stats";
 import {
   blockingPeers,
+  boxIndices,
   canUndo,
   colOf,
   completedDigits,
@@ -40,9 +63,41 @@ import {
 } from "@/lib/sudoku";
 import type { BoardState } from "@/types/game";
 
-const CONTROL =
-  "flex flex-col items-center gap-0.5 rounded-md border border-neutral-300 board-dark:border-neutral-700 bg-white board-dark:bg-neutral-800 py-2 text-sm text-black board-dark:text-neutral-100 hover:bg-neutral-100 board-dark:hover:bg-neutral-700 disabled:opacity-50";
-const CAPTION = "text-[0.65rem] text-neutral-500 board-dark:text-neutral-400";
+/** Cell indices for each 3x3 box, so the board can be drawn as nine separate tiles. */
+const BOX_CELLS = Array.from({ length: 9 }, (_, b) => boxIndices(b));
+
+const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+type ToolProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  icon: ReactNode;
+  label: string;
+  /** Highlighted as switched on (Notes). */
+  active?: boolean;
+  /** Small count shown on the icon (hints left). */
+  badge?: number;
+};
+
+/** An icon-over-label action under the number keys. */
+function Tool({ icon, label, active = false, badge, className = "", ...props }: ToolProps) {
+  return (
+    <button
+      {...props}
+      className={`relative flex flex-col items-center gap-1 rounded-xl py-2.5 text-xs font-medium transition-[background-color,color,transform,opacity] duration-150 ease-out select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:pointer-events-none disabled:opacity-35 motion-safe:active:scale-[0.94] ${
+        active ? "bg-accent/15 text-accent" : "text-muted hover:bg-surface hover:text-fg"
+      } ${className}`}
+    >
+      <span className="relative">
+        {icon}
+        {badge !== undefined && (
+          <span className="absolute -top-1.5 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[0.65rem] leading-none font-semibold text-white tabular-nums">
+            {badge}
+          </span>
+        )}
+      </span>
+      {label}
+    </button>
+  );
+}
 
 const ARROWS: Record<string, Direction> = {
   ArrowUp: "up",
@@ -389,10 +444,46 @@ export default function SudokuBoard({
     };
   }, []);
 
+  const mistakeText = settings.mistakeLimit
+    ? `${mistakes} of ${MAX_MISTAKES} mistakes`
+    : `${mistakes} ${mistakes === 1 ? "mistake" : "mistakes"}`;
+
+  function renderCell(i: number) {
+    const cell = cells[i];
+    return (
+      <SudokuCell
+        key={i}
+        cell={cell}
+        index={i}
+        isSelected={i === selectedIndex}
+        isPeer={settings.highlightPeers && peers.has(i)}
+        isSameValue={
+          settings.highlightPeers && selectedValue !== null && cell.value === selectedValue
+        }
+        isConflict={
+          conflicts.has(i) ||
+          (settings.highlightWrong &&
+            !cell.isGiven &&
+            cell.value !== null &&
+            !!solution &&
+            cell.value !== solution[i])
+        }
+        shakeKey={i === shake.target || shake.blockers.has(i) ? shake.id : null}
+        isBlocking={shake.blockers.has(i)}
+        celebrateKey={celebration.delays.has(i) ? celebration.id : null}
+        celebrateDelay={celebration.delays.get(i) ?? 0}
+        hintDigit={i === activeHint && solution ? solution[i] : null}
+        isDimmed={spotlight.on && activeHint !== null && i !== activeHint}
+        animate={settings.animations}
+        onSelect={(index) => dispatch({ type: "select", index })}
+      />
+    );
+  }
+
   return (
     <div
       data-board={settings.darkBoard ? "dark" : "light"}
-      className="mt-8 flex w-full max-w-md flex-col gap-4 p-10"
+      className="flex w-full max-w-[26rem] flex-col gap-5 py-6"
       // Clicking or tapping a button shouldn't focus it: a focused button repeats on Enter or
       // Space, so pressing Enter after tapping "5" would enter 5 again and clear the cell.
       // Keyboard users who Tab to a button still get focus and can press it normally.
@@ -401,51 +492,73 @@ export default function SudokuBoard({
       }}
     >
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
-      <div className="flex items-center justify-between">
+
+      <header className="flex items-center gap-1">
         <button
           onClick={onExit}
-          className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-black hover:bg-neutral-100 board-dark:border-neutral-700 board-dark:bg-neutral-800 board-dark:text-neutral-100 board-dark:hover:bg-neutral-700"
+          aria-label="Back to menu"
+          title="Back to menu"
+          className={button.icon}
         >
-          ← Menu
+          <ChevronLeftIcon />
         </button>
-        <div className="flex flex-col items-center text-sm">
-          <span className="font-medium text-zinc-400 capitalize">{difficulty}</span>
-          <span className={mistakes > 0 ? "font-medium text-red-400" : "text-zinc-400"}>
-            Mistakes {mistakes}
-            {settings.mistakeLimit ? `/${MAX_MISTAKES}` : ""}
+        <div className="ml-1 flex min-w-0 flex-1 flex-col items-start gap-1">
+          <span className="text-base leading-none font-semibold text-fg capitalize">
+            {difficulty}
           </span>
+          {settings.mistakeLimit ? (
+            <span className="flex items-center gap-1" title={mistakeText}>
+              <span className="sr-only">{mistakeText}</span>
+              {Array.from({ length: MAX_MISTAKES }, (_, k) => (
+                <span
+                  key={k}
+                  aria-hidden="true"
+                  className={`size-2 rounded-full transition-colors duration-300 ${
+                    k < mistakes ? "bg-danger" : "bg-line"
+                  }`}
+                />
+              ))}
+            </span>
+          ) : (
+            <span className={`text-xs leading-none ${mistakes > 0 ? "text-danger" : "text-muted"}`}>
+              {mistakeText}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-lg text-zinc-50 tabular-nums" aria-label="Elapsed time">
-            {settings.showTimer ? formatTime(seconds) : ""}
+        {settings.showTimer && (
+          <span
+            className="mr-1 min-w-[3.25rem] text-right text-lg font-medium text-fg tabular-nums"
+            aria-label="Elapsed time"
+          >
+            {formatTime(seconds)}
           </span>
-          <button
-            onClick={() => setPaused((p) => !p)}
-            disabled={finished}
-            aria-label={paused ? "Resume" : "Pause"}
-            title={paused ? "Resume (P)" : "Pause (P)"}
-            className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-black hover:bg-neutral-100 disabled:opacity-50 board-dark:border-neutral-700 board-dark:bg-neutral-800 board-dark:text-neutral-100 board-dark:hover:bg-neutral-700"
-          >
-            {paused ? "▶" : "❚❚"}
-          </button>
-          <button
-            onClick={() => {
-              if (!finished) setPaused(true);
-              setSettingsOpen(true);
-            }}
-            aria-label="Settings"
-            title="Settings"
-            className="rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm text-black hover:bg-neutral-100 board-dark:border-neutral-700 board-dark:bg-neutral-800 board-dark:text-neutral-100 board-dark:hover:bg-neutral-700"
-          >
-            ⚙
-          </button>
-        </div>
-      </div>
+        )}
+        <button
+          onClick={() => setPaused((p) => !p)}
+          disabled={finished}
+          aria-label={paused ? "Resume" : "Pause"}
+          title={paused ? "Resume (P)" : "Pause (P)"}
+          className={button.icon}
+        >
+          {paused ? <PlayIcon /> : <PauseIcon />}
+        </button>
+        <button
+          onClick={() => {
+            if (!finished) setPaused(true);
+            setSettingsOpen(true);
+          }}
+          aria-label="Settings"
+          title="Settings"
+          className={button.icon}
+        >
+          <SettingsIcon />
+        </button>
+      </header>
 
       <div
         role="grid"
         aria-label="Sudoku board"
-        className="relative grid aspect-square w-full grid-cols-9 border-2 border-neutral-800 board-dark:border-neutral-400"
+        className="relative grid aspect-square w-full grid-cols-3 grid-rows-3 gap-1 rounded-2xl bg-(--board) p-1 shadow-[0_18px_40px_-18px_rgb(0_0_0/0.7)]"
       >
         {solved && winResult && (
           <WinScreen
@@ -462,92 +575,71 @@ export default function SudokuBoard({
           />
         )}
         {gameOver && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-white/95 board-dark:bg-neutral-900/95">
-            <p
-              className="text-2xl font-semibold text-black board-dark:text-neutral-100"
-              role="status"
-            >
-              Game over
+          <BoardOverlay
+            title="Out of mistakes"
+            role="status"
+            animation={settings.animations ? "motion-safe:animate-fade-in" : ""}
+            actions={
+              <>
+                <button onClick={retry} className={button.primary}>
+                  Try again
+                </button>
+                <button onClick={onExit} className={button.boardSecondary}>
+                  Menu
+                </button>
+              </>
+            }
+          >
+            <p className="max-w-64 text-sm text-(--overlay-muted)">
+              The game ends after {MAX_MISTAKES} mistakes. You played for {formatTime(seconds)}.
             </p>
-            <p className="text-sm text-neutral-600 board-dark:text-neutral-400">
-              {MAX_MISTAKES} mistakes · {formatTime(seconds)}
-            </p>
-            <div className="mt-2 flex gap-2">
-              <button
-                onClick={retry}
-                className="rounded-md bg-blue-600 px-5 py-2 text-white hover:bg-blue-700"
-              >
-                Try again
-              </button>
-              <button
-                onClick={onExit}
-                className="rounded-md border border-neutral-300 bg-white px-5 py-2 text-black hover:bg-neutral-100 board-dark:border-neutral-700 board-dark:bg-neutral-800 board-dark:text-neutral-100 board-dark:hover:bg-neutral-700"
-              >
-                Back to menu
-              </button>
-            </div>
-          </div>
+          </BoardOverlay>
         )}
         {takenOver && !solved && !gameOver && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white px-6 board-dark:bg-neutral-800">
-            <p className="text-xl font-semibold text-black board-dark:text-neutral-100">
-              Game moved to another tab
-            </p>
-            <p className="text-sm text-neutral-600 board-dark:text-neutral-400">
+          <BoardOverlay
+            title="Game moved to another tab"
+            solid
+            actions={
+              <button onClick={onExit} className={button.primary}>
+                Back to menu
+              </button>
+            }
+          >
+            <p className="max-w-64 text-sm text-(--overlay-muted)">
               This game was finished or replaced in another tab.
             </p>
-            <button
-              onClick={onExit}
-              className="rounded-md bg-blue-600 px-5 py-2 text-white hover:bg-blue-700"
-            >
-              Back to menu
-            </button>
-          </div>
+          </BoardOverlay>
         )}
         {paused && !gameOver && !takenOver && (
-          // Covers the board so the puzzle can't be studied while the clock is stopped.
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white board-dark:bg-neutral-800">
-            <p className="text-2xl font-semibold text-black board-dark:text-neutral-100">Paused</p>
-            <button
-              onClick={() => setPaused(false)}
-              className="rounded-md bg-blue-600 px-6 py-2 text-white hover:bg-blue-700"
-            >
-              Resume
-            </button>
-          </div>
+          // Solid, so the puzzle can't be studied while the clock is stopped.
+          <BoardOverlay
+            title="Paused"
+            solid
+            actions={
+              <button onClick={() => setPaused(false)} className={button.primary}>
+                <PlayIcon />
+                Resume
+              </button>
+            }
+          >
+            <p className="max-w-64 text-sm text-(--overlay-muted)">
+              The board is hidden while the clock is stopped.
+            </p>
+          </BoardOverlay>
         )}
-        {cells.map((cell, i) => (
-          <SudokuCell
-            key={i}
-            cell={cell}
-            index={i}
-            isSelected={i === selectedIndex}
-            isPeer={settings.highlightPeers && peers.has(i)}
-            isSameValue={
-              settings.highlightPeers && selectedValue !== null && cell.value === selectedValue
-            }
-            isConflict={
-              conflicts.has(i) ||
-              (settings.highlightWrong &&
-                !cell.isGiven &&
-                cell.value !== null &&
-                !!solution &&
-                cell.value !== solution[i])
-            }
-            shakeKey={i === shake.target || shake.blockers.has(i) ? shake.id : null}
-            isBlocking={shake.blockers.has(i)}
-            celebrateKey={celebration.delays.has(i) ? celebration.id : null}
-            celebrateDelay={celebration.delays.get(i) ?? 0}
-            hintDigit={i === activeHint && solution ? solution[i] : null}
-            isDimmed={spotlight.on && activeHint !== null && i !== activeHint}
-            animate={settings.animations}
-            onSelect={(index) => dispatch({ type: "select", index })}
-          />
+        {BOX_CELLS.map((boxCells, b) => (
+          <div
+            key={b}
+            role="presentation"
+            className="grid min-h-0 grid-cols-3 grid-rows-3 gap-px overflow-hidden rounded-lg bg-(--line)"
+          >
+            {boxCells.map(renderCell)}
+          </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-9 gap-1">
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => {
+      <div className="grid grid-cols-9 gap-1.5">
+        {DIGITS.map((digit) => {
           const isComplete = completed.has(digit);
           // Just completed: play the pop-out first, then settle into the hidden state.
           const isLeaving = celebration.digits.has(digit);
@@ -560,17 +652,27 @@ export default function SudokuBoard({
               disabled={isComplete || paused || finished}
               aria-hidden={isComplete}
               aria-label={`${digit}, ${remaining} left`}
-              // Stay in the grid while hidden so the other buttons keep their positions.
-              className={`flex flex-col items-center rounded-md border border-neutral-300 bg-white py-1.5 text-black hover:bg-neutral-100 board-dark:border-neutral-700 board-dark:bg-neutral-800 board-dark:text-neutral-100 board-dark:hover:bg-neutral-700 ${
+              // Stay in the grid while hidden so the other keys keep their positions.
+              className={`flex aspect-[4/5] flex-col items-center justify-center gap-1 rounded-xl bg-surface transition-[background-color,color,transform,opacity] duration-150 ease-out select-none hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:pointer-events-none motion-safe:active:scale-[0.9] ${
+                notesActive ? "text-accent" : "text-fg"
+              } ${
                 isLeaving
                   ? "motion-safe:animate-pad-pop motion-reduce:invisible"
                   : isComplete
                     ? "invisible"
-                    : ""
+                    : paused || finished
+                      ? "opacity-40"
+                      : ""
               }`}
             >
-              <span className="text-lg leading-tight">{digit}</span>
-              <span className="text-[0.65rem] leading-tight text-neutral-600 board-dark:text-neutral-400">
+              <span
+                className={`leading-none font-medium transition-[font-size] duration-150 ${
+                  notesActive ? "text-lg" : "text-2xl"
+                }`}
+              >
+                {digit}
+              </span>
+              <span className="text-[0.65rem] leading-none text-muted tabular-nums">
                 {remaining}
               </span>
             </button>
@@ -578,59 +680,47 @@ export default function SudokuBoard({
         })}
       </div>
 
-      <div className="grid grid-cols-5 gap-2">
-        <button
+      <div className="grid grid-cols-5 gap-1">
+        <Tool
+          icon={<UndoIcon />}
+          label="Undo"
           onClick={() => dispatch({ type: "undo" })}
           // Mistakes already made stay counted; undo only restores the board.
           disabled={paused || finished || !canUndo(history)}
           title="Undo (Ctrl+Z)"
-          className={CONTROL}
-        >
-          <span>Undo</span>
-          <span className={CAPTION}>Ctrl+Z</span>
-        </button>
-        <button
+        />
+        <Tool
+          icon={<EraseIcon />}
+          label="Erase"
           onClick={() => dispatch({ type: "erase" })}
           disabled={paused || finished}
           title="Erase (Backspace)"
-          className={CONTROL}
-        >
-          <span>Erase</span>
-          <span className={CAPTION}>Del</span>
-        </button>
-        <button
+        />
+        <Tool
+          icon={<PencilIcon />}
+          label={shiftHeld && !noteMode ? "Notes (Shift)" : "Notes"}
+          active={notesActive}
           onClick={() => dispatch({ type: "toggleNoteMode" })}
           disabled={paused || finished}
           aria-pressed={noteMode}
-          title="Toggle notes (N), or hold Shift while entering a number"
-          className={`${CONTROL} ${notesActive ? "border-blue-600! bg-blue-600! text-white!" : ""}`}
-        >
-          <span>Notes</span>
-          <span className={notesActive ? "text-[0.65rem] text-blue-100" : CAPTION}>
-            {shiftHeld && !noteMode ? "Shift" : notesActive ? "On" : "Off"}
-          </span>
-        </button>
-        <button
+          title="Notes (N), or hold Shift while entering a number"
+        />
+        <Tool
+          icon={<AutoNotesIcon />}
+          label="Auto notes"
           onClick={() => dispatch({ type: "autoNotes" })}
           disabled={paused || finished}
           title="Fill every empty cell with its possible numbers (A)"
-          className={CONTROL}
-        >
-          <span>Auto</span>
-          <span className={CAPTION}>notes</span>
-        </button>
-        <button
+        />
+        <Tool
+          icon={<HintIcon />}
+          label="Hint"
+          badge={hintsLeft}
           onClick={giveHint}
           disabled={paused || finished || (hintsLeft === 0 && activeHint === null)}
           title="Show where a number goes (H)"
           aria-label={`Hint, ${hintsLeft} left`}
-          className={CONTROL}
-        >
-          <span>Hint</span>
-          <span className="rounded-full bg-blue-600 px-1.5 text-[0.65rem] font-semibold text-white">
-            {hintsLeft}
-          </span>
-        </button>
+        />
       </div>
     </div>
   );

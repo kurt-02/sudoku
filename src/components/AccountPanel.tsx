@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useFormStatus } from "react-dom";
 import { signInWithGoogle, signOutUser } from "@/app/actions/auth";
+import { button } from "@/components/ui/button";
 import type { SessionUser } from "@/types/auth";
 
 type Props = {
@@ -39,7 +40,7 @@ function SignInButton() {
     <button
       type="submit"
       disabled={pending}
-      className="flex w-full items-center justify-center gap-3 rounded-lg border border-neutral-300 bg-white px-5 py-3 font-medium text-black hover:bg-neutral-100 disabled:opacity-60"
+      className="flex w-full items-center justify-center gap-3 rounded-xl bg-white px-5 py-3 font-medium text-[#1f1f1f] transition-[background-color,transform] duration-150 ease-out select-none hover:bg-[#f1f3f4] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60 motion-safe:active:scale-[0.98]"
     >
       <GoogleLogo />
       {pending ? "Redirecting to Google…" : "Sign in with Google"}
@@ -50,11 +51,7 @@ function SignInButton() {
 function SignOutButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:bg-white/10 hover:text-zinc-50 disabled:opacity-60"
-    >
+    <button type="submit" disabled={pending} className={`${button.ghost} text-sm`}>
       {pending ? "Signing out…" : "Sign out"}
     </button>
   );
@@ -65,8 +62,8 @@ export default function AccountPanel({ user }: Props) {
     return (
       <form action={signInWithGoogle} className="flex flex-col gap-2">
         <SignInButton />
-        <p className="text-xs text-zinc-400">
-          Playing as a guest. Progress is saved on this device.
+        <p className="text-center text-xs text-muted">
+          Or keep playing as a guest. Progress stays on this device.
         </p>
       </form>
     );
@@ -74,20 +71,18 @@ export default function AccountPanel({ user }: Props) {
 
   const label = user.name ?? user.email ?? "Player";
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg bg-white/5 px-4 py-3">
+    <div className="flex items-center justify-between gap-3 rounded-2xl bg-surface py-3 pr-2 pl-4">
       <div className="flex min-w-0 items-center gap-3">
         {user.image ? (
           <Image src={user.image} alt="" width={36} height={36} className="size-9 rounded-full" />
         ) : (
-          <span className="flex size-9 items-center justify-center rounded-full bg-blue-600 font-semibold text-white">
+          <span className="flex size-9 items-center justify-center rounded-full bg-accent font-semibold text-white">
             {label.charAt(0).toUpperCase()}
           </span>
         )}
         <div className="min-w-0 text-left">
-          <p className="truncate text-sm font-medium text-zinc-50">{label}</p>
-          {user.email && user.name && (
-            <p className="truncate text-xs text-zinc-400">{user.email}</p>
-          )}
+          <p className="truncate text-sm font-medium text-fg">{label}</p>
+          {user.email && user.name && <p className="truncate text-xs text-muted">{user.email}</p>}
         </div>
       </div>
       <form action={signOutUser}>

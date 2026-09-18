@@ -1,24 +1,65 @@
 @import "tailwindcss";
 
-/* `board-dark:` styles apply inside the game area when the Dark board setting is on. */
-@custom-variant board-dark (&:where([data-board="dark"], [data-board="dark"] *));
+/* Page palette: one dark ink, raised surfaces, and a single blue accent. */
+@theme {
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
 
-:root {
-  --background: #1c1c1c;
-  --foreground: #ededed;
-  /* Flash color for completed rows, columns, boxes, and numbers. */
-  --celebrate: var(--color-emerald-200);
+  --color-ink: #1c1c1c;
+  --color-surface: #28282c;
+  --color-surface-hover: #323237;
+  --color-line: #3a3a40;
+  --color-fg: #ececf0;
+  --color-muted: #9c9ca6;
+  --color-accent: #4d8dff;
+  --color-accent-strong: #3a7bf2;
+  --color-danger: #ff6b6b;
+}
+
+/*
+ * Board palette. The board is its own object: a light "paper" board by default, or a dark one
+ * (Settings > Dark board). Components read these through utilities like bg-(--cell).
+ * Thin lines are always darker than every cell shade so they never vanish under highlights.
+ */
+[data-board] {
+  --board: #a9b0bd; /* grooves between the 3x3 boxes */
+  --line: #c5ccd7; /* lines between cells */
+  --cell: #f8f9fb;
+  --cell-peer: #eceff4;
+  --cell-same: #d9e5fb;
+  --cell-selected: #bcd2f8;
+  --cell-blocking: #fbd3d3;
+  --digit-given: #1b2130;
+  --digit-entry: #2563eb;
+  --digit-wrong: #dc2626;
+  --note: #667085;
+  --hint: #2563eb;
+  --celebrate: #b7ebcf;
+  --overlay: rgb(248 249 251 / 0.97);
+  --overlay-fg: #1b2130;
+  --overlay-muted: #5b6475;
+  --overlay-button: #e6e9ef;
+  --overlay-button-hover: #dadee6;
 }
 
 [data-board="dark"] {
-  --celebrate: var(--color-emerald-800);
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --board: #0d0d0f;
+  --line: #19191c;
+  --cell: #242428;
+  --cell-peer: #2f2f35;
+  --cell-same: #1e3358;
+  --cell-selected: #2a4a82;
+  --cell-blocking: #5a2327;
+  --digit-given: #ececf0;
+  --digit-entry: #7ba8ff;
+  --digit-wrong: #ff7b7b;
+  --note: #a3a3ad;
+  --hint: #7ba8ff;
+  --celebrate: #1f5a3c;
+  --overlay: rgb(28 28 30 / 0.97);
+  --overlay-fg: #ececf0;
+  --overlay-muted: #9c9ca6;
+  --overlay-button: #2f2f35;
+  --overlay-button-hover: #393940;
 }
 
 @theme {
@@ -54,8 +95,10 @@
     }
   }
 
+  /* Board overlays (win, game over, pause) answering the move that caused them. */
+  --animate-fade-in: fade-in 0.25s ease-out both;
   /* The win screen, delayed so the final completion ripple plays first. */
-  --animate-fade-in: fade-in 0.4s ease-out 1.1s both;
+  --animate-fade-in-late: fade-in 0.4s ease-out 1.1s both;
 
   @keyframes fade-in {
     from {
@@ -68,7 +111,7 @@
     }
   }
 
-  /* A number-pad button leaving once all nine of its number are placed. */
+  /* A number key leaving once all nine of its number are placed. */
   --animate-pad-pop: pad-pop 0.5s ease-in forwards;
 
   @keyframes pad-pop {
@@ -77,19 +120,27 @@
       opacity: 1;
     }
     30% {
-      transform: scale(1.2);
+      transform: scale(1.15);
       opacity: 1;
-      background-color: var(--celebrate);
+      background-color: var(--color-accent);
     }
     100% {
       transform: scale(0);
       opacity: 0;
     }
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Dialogs opening in response to a click. */
+  --animate-dialog-in: dialog-in 0.18s ease-out both;
+
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 }

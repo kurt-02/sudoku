@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { button } from "@/components/ui/button";
+import { CloseIcon } from "@/components/ui/icons";
 import type { Settings } from "@/lib/settings";
 import { resetStats } from "@/lib/stats";
 import { MAX_MISTAKES } from "@/lib/sudoku";
@@ -11,7 +13,7 @@ type Props = {
 };
 
 const OPTIONS: { key: keyof Settings; label: string; description: string }[] = [
-  { key: "darkBoard", label: "Dark board", description: "Dark cells and buttons" },
+  { key: "darkBoard", label: "Dark board", description: "Dark cells instead of light ones" },
   {
     key: "mistakeLimit",
     label: "Mistake limit",
@@ -58,50 +60,46 @@ export default function SettingsDialog({ onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm sm:items-center"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
-        className="w-full max-w-sm rounded-xl bg-white p-5 text-left text-black shadow-xl"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl bg-surface p-2 text-left text-fg shadow-[0_24px_60px_-20px_rgb(0_0_0/0.8)] motion-safe:animate-dialog-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-3 flex items-center justify-between">
-          <h2 id="settings-title" className="text-xl font-semibold">
+        <div className="flex items-center justify-between py-1 pr-1 pl-4">
+          <h2 id="settings-title" className="text-xl font-semibold tracking-tight">
             Settings
           </h2>
-          <button
-            onClick={onClose}
-            aria-label="Close settings"
-            className="rounded-md px-2 py-1 text-neutral-500 hover:bg-neutral-100 hover:text-black"
-          >
-            ✕
+          <button onClick={onClose} aria-label="Close settings" className={button.icon}>
+            <CloseIcon />
           </button>
         </div>
 
-        <ul className="divide-y divide-neutral-200">
+        <ul className="mt-1">
           {OPTIONS.map(({ key, label, description }) => (
             <li key={key}>
               <button
                 role="switch"
                 aria-checked={settings[key]}
                 onClick={() => updateSettings({ [key]: !settings[key] })}
-                className="flex w-full items-center justify-between gap-4 py-3 text-left"
+                className="flex w-full items-center justify-between gap-4 rounded-xl px-4 py-3 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
               >
                 <span>
                   <span className="block text-sm font-medium">{label}</span>
-                  <span className="block text-xs text-neutral-500">{description}</span>
+                  <span className="block text-xs leading-snug text-muted">{description}</span>
                 </span>
                 <span
-                  className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-                    settings[key] ? "bg-blue-600" : "bg-neutral-300"
+                  className={`relative h-6 w-10 shrink-0 rounded-full transition-colors duration-200 ${
+                    settings[key] ? "bg-accent" : "bg-line"
                   }`}
                 >
                   <span
-                    className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform ${
-                      settings[key] ? "translate-x-5.5" : "translate-x-0.5"
+                    className={`absolute top-1 left-1 size-4 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out ${
+                      settings[key] ? "translate-x-4" : "translate-x-0"
                     }`}
                   />
                 </span>
@@ -110,15 +108,11 @@ export default function SettingsDialog({ onClose }: Props) {
           ))}
         </ul>
 
-        <div className="mt-4 flex items-center justify-between border-t border-neutral-200 pt-4">
-          <span className="text-xs text-neutral-500">
+        <div className="mt-2 flex items-center justify-between gap-4 border-t border-line/60 px-4 pt-3 pb-2">
+          <span className="text-xs text-muted">
             {statsCleared ? "Stats reset." : "Wins, best times, and streaks"}
           </span>
-          <button
-            onClick={clearStats}
-            disabled={statsCleared}
-            className="rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-          >
+          <button onClick={clearStats} disabled={statsCleared} className={button.danger}>
             Reset stats
           </button>
         </div>
