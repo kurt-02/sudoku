@@ -15,17 +15,20 @@ npm run dev                  # http://localhost:3000
 
 ## Scripts
 
-| Script                 | What it does                     |
-| ---------------------- | -------------------------------- |
-| `npm run dev`          | Start the dev server (Turbopack) |
-| `npm run build`        | Production build                 |
-| `npm run start`        | Serve the production build       |
-| `npm run lint`         | Run ESLint                       |
-| `npm run typecheck`    | Type-check with `tsc --noEmit`   |
-| `npm run test`         | Run Vitest once                  |
-| `npm run test:watch`   | Run Vitest in watch mode         |
-| `npm run format`       | Format all files with Prettier   |
-| `npm run format:check` | Check formatting without writing |
+| Script                 | What it does                                |
+| ---------------------- | ------------------------------------------- |
+| `npm run dev`          | Start the dev server (Turbopack)            |
+| `npm run build`        | Production build                            |
+| `npm run start`        | Serve the production build                  |
+| `npm run lint`         | Run ESLint                                  |
+| `npm run typecheck`    | Type-check with `tsc --noEmit`              |
+| `npm run test`         | Run Vitest once                             |
+| `npm run test:watch`   | Run Vitest in watch mode                    |
+| `npm run format`       | Format all files with Prettier              |
+| `npm run format:check` | Check formatting without writing            |
+| `npm run db:generate`  | Create a migration from `src/db/schema.ts`  |
+| `npm run db:migrate`   | Apply migrations to `DATABASE_URL_UNPOOLED` |
+| `npm run db:studio`    | Browse the database in Drizzle Studio       |
 
 ## Project structure
 
@@ -36,6 +39,7 @@ src/
   components/ui/   primitives
   lib/             utilities
   lib/sudoku/      pure game engine
+  db/              database schema and queries (Drizzle + Postgres)
   types/           shared TypeScript types
 ```
 
