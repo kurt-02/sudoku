@@ -9,7 +9,7 @@ Requires Node.js 22+ (developed on Node 24).
 
 ```bash
 npm install
-cp .env.example .env.local   # not needed until Phase 4
+cp .env.example .env.local   # then fill in the Google auth values
 npm run dev                  # http://localhost:3000
 ```
 
@@ -43,8 +43,8 @@ src/
 
 - [x] Phase 0: Foundation (scaffold, tooling, tests, CI-ready scripts)
 - [x] Phase 1: Engine (pure puzzle generation, validation, solving)
-- [ ] Phase 2: Board (interactive grid UI)
-- [ ] Phase 3: Game feel (notes, undo, timer, keyboard, polish)
+- [x] Phase 2: Board (interactive grid UI)
+- [x] Phase 3: Game feel (notes, undo, timer, keyboard, polish)
 - [ ] Phase 4: Database
-- [ ] Phase 5: Google auth
+- [x] Phase 5: Google auth
 - [ ] Phase 6: Persistence (save and resume games per user)

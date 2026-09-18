@@ -6,6 +6,7 @@ import SudokuBoard from "@/components/SudokuBoard";
 import { newGameId, parseSavedGame, readSavedGameRaw, subscribeSavedGame } from "@/lib/savedGame";
 import { recordAbandon, recordStart, updateStats } from "@/lib/stats";
 import { createBoardState, generatePuzzle, gridToString, type Difficulty } from "@/lib/sudoku";
+import type { SessionUser } from "@/types/auth";
 import type { BoardState } from "@/types/game";
 
 type Game = {
@@ -20,8 +21,13 @@ type Game = {
   initialHintsUsed: number;
 };
 
+type Props = {
+  /** Signed-in Google account, or null for a guest. */
+  user: SessionUser | null;
+};
+
 /** Top-level flow: pick a difficulty (or continue a saved game), then play. */
-export default function SudokuGame() {
+export default function SudokuGame({ user }: Props) {
   const [game, setGame] = useState<Game | null>(null);
 
   // localStorage only exists in the browser; the server snapshot (null) keeps hydration consistent.
@@ -61,7 +67,9 @@ export default function SudokuGame() {
   }
 
   if (!game) {
-    return <DifficultyMenu saved={saved} onSelect={startGame} onContinue={continueGame} />;
+    return (
+      <DifficultyMenu user={user} saved={saved} onSelect={startGame} onContinue={continueGame} />
+    );
   }
 
   return (

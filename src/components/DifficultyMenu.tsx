@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import AccountPanel from "@/components/AccountPanel";
 import SettingsDialog from "@/components/SettingsDialog";
 import { formatTime } from "@/lib/format";
 import type { SavedGame } from "@/lib/savedGame";
 import { CLUE_TARGETS, type Difficulty } from "@/lib/sudoku";
+import type { SessionUser } from "@/types/auth";
 
 type Props = {
+  user: SessionUser | null;
   /** Unfinished game to offer resuming, if any. */
   saved: SavedGame | null;
   onSelect: (difficulty: Difficulty) => void;
@@ -19,7 +22,7 @@ const OPTIONS: { difficulty: Difficulty; description: string }[] = [
   { difficulty: "hard", description: "Few clues, lots of thinking" },
 ];
 
-export default function DifficultyMenu({ saved, onSelect, onContinue }: Props) {
+export default function DifficultyMenu({ user, saved, onSelect, onContinue }: Props) {
   const filled = saved ? saved.cells.filter((c) => c.value !== null).length : 0;
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -29,6 +32,9 @@ export default function DifficultyMenu({ saved, onSelect, onContinue }: Props) {
       <p className="mb-6 text-lg text-zinc-400">
         A clean, fast Sudoku you can play in the browser. Coming soon.
       </p>
+      <div className="mb-4">
+        <AccountPanel user={user} />
+      </div>
       {saved && (
         <>
           <button
